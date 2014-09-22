@@ -13,26 +13,30 @@ Key Features of the Driver
   - Fully optimized for Mountain Lion and Mavericks (64bit architecture) but should work with Lion too, provided you build from source with the 10.7 SDK.
   - Support for Energy Efficient Ethernet (EEE).
   - Wake on LAN support.
-VLAN support is implemented but untested as I have no need for it.
-The driver is published under GPLv2.
+  - VLAN support is implemented but untested as I have no need for it.
+  - The driver is published under GPLv2.
+
 Known Issues
-A user reported that his BIOS (Toshiba) left the NIC disabled so that the driver refuses to load. This problem also affects ALXEthernet.kext and any known linux driver for the supported chips. As of now there is no fix. You'll have to contact your BIOS vendor for a solution in case you are affected.
+  - A user reported that his BIOS (Toshiba) left the NIC disabled so that the driver refuses to load. This problem also affects ALXEthernet.kext and any known linux driver for the supported chips. As of now there is no fix. You'll have to contact your BIOS vendor for a solution in case you are affected.
+
 FAQ
-Could you add support for AR813x and AR815x? Sorry, no, because I used a different linux driver as the code base than Shailua which doesn't support these chips so that it would be too much work to add support for them.
+  - Could you add support for AR813x and AR815x? Sorry, no, because I used a different linux driver as the code base than Shailua which doesn't support these chips so that it would be too much work to add support for them.
+
 Installation
-Goto /S/L/E and delete ALXEthernet.kext.
-Recreate the kernel cache.
-Open System Preferences and delete the corresponding network interface, e. g. en0.
-Reboot.
-Install the new driver and recreate the kernel cache.
-Reboot
-Open System Preferences again, select Network and check if the new network interface has been created automatically or create it manually now.
-Configure the interface.
+  1. Goto /S/L/E and delete ALXEthernet.kext.
+  2. Recreate the kernel cache.
+  3. Open System Preferences and delete the corresponding network interface, e. g. en0.
+  4. Reboot.
+  5. Install the new driver and recreate the kernel cache.
+  6. Reboot
+  7. Open System Preferences again, select Network and check if the new network interface has been created automatically or create it manually now.
+  8.Configure the interface.
+
 Troubleshooting
-Make sure you have followed the installation instructions especially when you have issues with certain domains while the others are working fine.
-Use the debug version to collect log data when trying to track down problems. The kernel log messages can be retrieved with "grep kernel /var/log/system.log" in Terminal. Include the log data when asking for support or giving feedback. I'm an engineer, not a clairvoyant.
-Check your BIOS settings. You might want to disable Network Boot and the UEFI Network Stack as these can interfere with the driver.
-Double check that you have removed any ALXEthernet.kext from your system because it could prevent the driver from working properly.
+  - Make sure you have followed the installation instructions especially when you have issues with certain domains while the others are working fine.
+  - Use the debug version to collect log data when trying to track down problems. The kernel log messages can be retrieved with "grep kernel /var/log/system.log" in Terminal. Include the log data when asking for support or giving feedback. I'm an engineer, not a clairvoyant.
+  - Check your BIOS settings. You might want to disable Network Boot and the UEFI Network Stack as these can interfere with the driver.
+  - Double check that you have removed any ALXEthernet.kext from your system because it could prevent the driver from working properly.
 Verify your bootloader configuration, in particular the kernel flags. Avoid using npci=0x2000 or npci=0x3000. 
 In Terminal run netstat -s in order to display network statistics. Carefully examine the data for any unusual activity like a high number of packets with bad IP header checksums, etc.
 In case auto-configuration of the link layer connection doesn't work it might be necessary to select the medium manually in System Preferences under Network for the interface.
