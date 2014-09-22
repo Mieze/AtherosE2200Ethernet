@@ -44,17 +44,17 @@ Troubleshooting
   - Keep in mind that there are many manufacturers of network equipment. Although Ethernet is an IEEE standard, different implementations may show different behavior causing incompatibilities. In case you are having trouble try a different switch or a different cable.
 
 Changelog
-  Version 1.0.0 (2014-09-22)
-    Final release.
-  Version 1.0.0d7 (2014-08-18)
-    Fixed Wake on LAN.
-  Version 1.0.0d6 (2014-08-16)
-    Detects situations when the BIOS left the NIC disabled and outputs an error messages.
-    Small optimizations and improved error handling.
-  Version 1.0.0d5 (2014-08-13)
-    Removed the mbuf_pullup() call in outputPacket() as the NIC seems to accept packets with noncontiguous headers.
-  Version 1.0.0d4 (2014-08-12)
-    Fixed TSO with IPv4 and IPv6.
-  Version 1.0.0d3 (2014-08-10)
-    Added support for TCP and UDP checksum offload over IPv6.
-    Cleaned up the code and improved error handling.
+  - Version 1.0.0 (2014-09-22)
+    - Final release.
+  - Version 1.0.0d7 (2014-08-18)
+    - Fixed Wake on LAN.
+  - Version 1.0.0d6 (2014-08-16)
+    - Detects situations when the BIOS left the NIC disabled and outputs an error messages.
+    - Small optimizations and improved error handling.
+  - Version 1.0.0d5 (2014-08-13)
+    - Removed the mbuf_pullup() call in outputPacket() as the NIC seems to accept packets with noncontiguous headers.
+  - Version 1.0.0d4 (2014-08-12)
+    - Fixed TSO with IPv4 and IPv6.
+  - Version 1.0.0d3 (2014-08-10)
+    - Added support for TCP and UDP checksum offload over IPv6.
+    - Cleaned up the code and improved error handling.
