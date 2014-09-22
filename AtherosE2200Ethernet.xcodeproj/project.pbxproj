@@ -317,7 +317,7 @@
 				GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = YES;
 				INFOPLIST_FILE = "AtherosE2200Ethernet/AtherosE2200Ethernet-Info.plist";
 				MODULE_NAME = com.insanelymac.AtherosE2200Ethernet;
-				MODULE_VERSION = 1.0.0d7;
+				MODULE_VERSION = 1.0.0;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx10.8;
 				WRAPPER_EXTENSION = kext;
@@ -334,7 +334,7 @@
 				GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = YES;
 				INFOPLIST_FILE = "AtherosE2200Ethernet/AtherosE2200Ethernet-Info.plist";
 				MODULE_NAME = com.insanelymac.AtherosE2200Ethernet;
-				MODULE_VERSION = 1.0.0d7;
+				MODULE_VERSION = 1.0.0;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx10.8;
 				WRAPPER_EXTENSION = kext;
