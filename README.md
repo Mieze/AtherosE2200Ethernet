@@ -37,21 +37,24 @@ Troubleshooting
   - Use the debug version to collect log data when trying to track down problems. The kernel log messages can be retrieved with "grep kernel /var/log/system.log" in Terminal. Include the log data when asking for support or giving feedback. I'm an engineer, not a clairvoyant.
   - Check your BIOS settings. You might want to disable Network Boot and the UEFI Network Stack as these can interfere with the driver.
   - Double check that you have removed any ALXEthernet.kext from your system because it could prevent the driver from working properly.
-Verify your bootloader configuration, in particular the kernel flags. Avoid using npci=0x2000 or npci=0x3000. 
-In Terminal run netstat -s in order to display network statistics. Carefully examine the data for any unusual activity like a high number of packets with bad IP header checksums, etc.
-In case auto-configuration of the link layer connection doesn't work it might be necessary to select the medium manually in System Preferences under Network for the interface.
-Use Wireshark to create a packet dump in order to collect diagnostic information.
-Keep in mind that there are many manufacturers of network equipment. Although Ethernet is an IEEE standard, different implementations may show different behavior causing incompatibilities. In case you are having trouble try a different switch or a different cable.
+  - Verify your bootloader configuration, in particular the kernel flags. Avoid using npci=0x2000 or npci=0x3000. 
+  - In Terminal run netstat -s in order to display network statistics. Carefully examine the data for any unusual activity like a high number of packets with bad IP header checksums, etc.
+  - In case auto-configuration of the link layer connection doesn't work it might be necessary to select the medium manually in System Preferences under Network for the interface.
+  - Use Wireshark to create a packet dump in order to collect diagnostic information.
+  - Keep in mind that there are many manufacturers of network equipment. Although Ethernet is an IEEE standard, different implementations may show different behavior causing incompatibilities. In case you are having trouble try a different switch or a different cable.
+
 Changelog
-Version 1.0.0d7 (2014-08-18)
-Fixed Wake on LAN.
-Version 1.0.0d6 (2014-08-16)
-Detects situations when the BIOS left the NIC disabled and outputs an error messages.
-Small optimizations and improved error handling.
-Version 1.0.0d5 (2014-08-13)
-Removed the mbuf_pullup() call in outputPacket() as the NIC seems to accept packets with noncontiguous headers.
-Version 1.0.0d4 (2014-08-12)
-Fixed TSO with IPv4 and IPv6.
-Version 1.0.0d3 (2014-08-10)
-Added support for TCP and UDP checksum offload over IPv6.
-Cleaned up the code and improved error handling.
+  Version 1.0.0 (2014-09-22)
+    Final release.
+  Version 1.0.0d7 (2014-08-18)
+    Fixed Wake on LAN.
+  Version 1.0.0d6 (2014-08-16)
+    Detects situations when the BIOS left the NIC disabled and outputs an error messages.
+    Small optimizations and improved error handling.
+  Version 1.0.0d5 (2014-08-13)
+    Removed the mbuf_pullup() call in outputPacket() as the NIC seems to accept packets with noncontiguous headers.
+  Version 1.0.0d4 (2014-08-12)
+    Fixed TSO with IPv4 and IPv6.
+  Version 1.0.0d3 (2014-08-10)
+    Added support for TCP and UDP checksum offload over IPv6.
+    Cleaned up the code and improved error handling.
