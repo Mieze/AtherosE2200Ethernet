@@ -9,6 +9,9 @@
 /* Begin PBXBuildFile section */
 		D3258579198482FF00C05A72 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = D3258577198482FF00C05A72 /* InfoPlist.strings */; };
 		D325857C198482FF00C05A72 /* AtherosE2200Ethernet.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D325857B198482FF00C05A72 /* AtherosE2200Ethernet.cpp */; };
+		D325859119848CCA00C05A72 /* hw.h in Headers */ = {isa = PBXBuildFile; fileRef = D325858E19848CCA00C05A72 /* hw.h */; };
+		D325859219848CCA00C05A72 /* reg.h in Headers */ = {isa = PBXBuildFile; fileRef = D325858F19848CCA00C05A72 /* reg.h */; };
+		D3258594198492CD00C05A72 /* hw.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D3258593198492CD00C05A72 /* hw.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -19,6 +22,19 @@
 		D325857A198482FF00C05A72 /* AtherosE2200Ethernet.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AtherosE2200Ethernet.h; sourceTree = "<group>"; };
 		D325857B198482FF00C05A72 /* AtherosE2200Ethernet.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = AtherosE2200Ethernet.cpp; sourceTree = "<group>"; };
 		D325857D198482FF00C05A72 /* AtherosE2200Ethernet-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "AtherosE2200Ethernet-Prefix.pch"; sourceTree = "<group>"; };
+		D32585831984866F00C05A72 /* linux.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = linux.h; sourceTree = "<group>"; };
+		D32585871984866F00C05A72 /* gpl.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = gpl.txt; sourceTree = "<group>"; };
+		D325858E19848CCA00C05A72 /* hw.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = hw.h; sourceTree = "<group>"; };
+		D325858F19848CCA00C05A72 /* reg.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = reg.h; sourceTree = "<group>"; };
+		D3258593198492CD00C05A72 /* hw.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = hw.cpp; sourceTree = "<group>"; };
+		D32A206C19861FF300E64285 /* mdio.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = mdio.h; sourceTree = "<group>"; };
+		D32A206D1986203D00E64285 /* mii.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = mii.h; sourceTree = "<group>"; };
+		D32A206E198620FF00E64285 /* uapi-mdio.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "uapi-mdio.h"; sourceTree = "<group>"; };
+		D32A206F198621C500E64285 /* uapi-mii.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "uapi-mii.h"; sourceTree = "<group>"; };
+		D32A20701986226500E64285 /* uapi-ethtool.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "uapi-ethtool.h"; sourceTree = "<group>"; };
+		D32A20711986230A00E64285 /* if_ether.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = if_ether.h; sourceTree = "<group>"; };
+		D32A20721986236A00E64285 /* ethtool.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ethtool.h; sourceTree = "<group>"; };
+		D3581701198FB4D2009096B2 /* uapi-ip.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "uapi-ip.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -70,6 +86,9 @@
 			children = (
 				D325857A198482FF00C05A72 /* AtherosE2200Ethernet.h */,
 				D325857B198482FF00C05A72 /* AtherosE2200Ethernet.cpp */,
+				D32585991984E49D00C05A72 /* ALX */,
+				D325859A1984E4CD00C05A72 /* Linux compatibility */,
+				D32585871984866F00C05A72 /* gpl.txt */,
 				D3258575198482FF00C05A72 /* Supporting Files */,
 			);
 			path = AtherosE2200Ethernet;
@@ -85,6 +104,32 @@
 			name = "Supporting Files";
 			sourceTree = "<group>";
 		};
+		D32585991984E49D00C05A72 /* ALX */ = {
+			isa = PBXGroup;
+			children = (
+				D325858E19848CCA00C05A72 /* hw.h */,
+				D325858F19848CCA00C05A72 /* reg.h */,
+				D3258593198492CD00C05A72 /* hw.cpp */,
+			);
+			name = ALX;
+			sourceTree = "<group>";
+		};
+		D325859A1984E4CD00C05A72 /* Linux compatibility */ = {
+			isa = PBXGroup;
+			children = (
+				D32585831984866F00C05A72 /* linux.h */,
+				D32A20721986236A00E64285 /* ethtool.h */,
+				D32A20711986230A00E64285 /* if_ether.h */,
+				D32A206C19861FF300E64285 /* mdio.h */,
+				D32A206D1986203D00E64285 /* mii.h */,
+				D32A20701986226500E64285 /* uapi-ethtool.h */,
+				D32A206E198620FF00E64285 /* uapi-mdio.h */,
+				D32A206F198621C500E64285 /* uapi-mii.h */,
+				D3581701198FB4D2009096B2 /* uapi-ip.h */,
+			);
+			name = "Linux compatibility";
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXHeadersBuildPhase section */
@@ -92,6 +137,8 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D325859119848CCA00C05A72 /* hw.h in Headers */,
+				D325859219848CCA00C05A72 /* reg.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -169,6 +216,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D3258594198492CD00C05A72 /* hw.cpp in Sources */,
 				D325857C198482FF00C05A72 /* AtherosE2200Ethernet.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -214,6 +262,7 @@
 				);
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
@@ -221,7 +270,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 10.8;
 				ONLY_ACTIVE_ARCH = YES;
-				SDKROOT = macosx;
+				SDKROOT = macosx10.8;
 			};
 			name = Debug;
 		};
@@ -247,13 +296,14 @@
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 10.8;
-				SDKROOT = macosx;
+				SDKROOT = macosx10.8;
 			};
 			name = Release;
 		};
@@ -261,13 +311,15 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1.0.0d1;
+				CURRENT_PROJECT_VERSION = $MODULE_VERSION;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "AtherosE2200Ethernet/AtherosE2200Ethernet-Prefix.pch";
+				GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = YES;
 				INFOPLIST_FILE = "AtherosE2200Ethernet/AtherosE2200Ethernet-Info.plist";
 				MODULE_NAME = com.insanelymac.AtherosE2200Ethernet;
-				MODULE_VERSION = 1.0.0d1;
+				MODULE_VERSION = 1.0.0d7;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx10.8;
 				WRAPPER_EXTENSION = kext;
 			};
 			name = Debug;
@@ -276,13 +328,15 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1.0.0d1;
+				CURRENT_PROJECT_VERSION = $MODULE_VERSION;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "AtherosE2200Ethernet/AtherosE2200Ethernet-Prefix.pch";
+				GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = YES;
 				INFOPLIST_FILE = "AtherosE2200Ethernet/AtherosE2200Ethernet-Info.plist";
 				MODULE_NAME = com.insanelymac.AtherosE2200Ethernet;
-				MODULE_VERSION = 1.0.0d1;
+				MODULE_VERSION = 1.0.0d7;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx10.8;
 				WRAPPER_EXTENSION = kext;
 			};
 			name = Release;
@@ -306,6 +360,7 @@
 				D3258582198482FF00C05A72 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
