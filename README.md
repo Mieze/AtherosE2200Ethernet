@@ -17,7 +17,7 @@ Key Features of the Driver
   - The driver is published under GPLv2.
 
 Known Issues
-  - A user reported that his BIOS (Toshiba) left the NIC disabled so that the driver refuses to load. This problem also affects ALXEthernet.kext and any known linux driver for the supported chips. As of now there is no fix. You'll have to contact your BIOS vendor for a solution in case you are affected.
+  - None.
 
 FAQ
   - Could you add support for AR813x and AR815x? Sorry, no, because I used a different linux driver as the code base than Shailua which doesn't support these chips so that it would be too much work to add support for them.
