@@ -44,6 +44,10 @@ Troubleshooting
   - Keep in mind that there are many manufacturers of network equipment. Although Ethernet is an IEEE standard, different implementations may show different behavior causing incompatibilities. In case you are having trouble try a different switch or a different cable.
 
 Changelog
+  - Version 1.0.1 (2015-03-01)
+    - Reworked media selection and reporting.
+    - Improved flow control support.
+    - Resolved the NIC disabled by BIOS issue. 
   - Version 1.0.0 (2014-09-22)
     - Final release.
   - Version 1.0.0d7 (2014-08-18)
