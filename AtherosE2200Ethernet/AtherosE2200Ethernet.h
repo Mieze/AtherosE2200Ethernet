@@ -47,6 +47,7 @@ enum
 	MEDIUM_INDEX_100HD,
 	MEDIUM_INDEX_100FD,
 	MEDIUM_INDEX_1000FD,
+	MEDIUM_INDEX_1000FDFC,
 	MEDIUM_INDEX_COUNT
 };
 
@@ -56,14 +57,6 @@ enum {
     kSpeed1000MBit = 1000*MBit,
     kSpeed100MBit = 100*MBit,
     kSpeed10MBit = 10*MBit,
-};
-
-enum {
-    kFlowControlTypeNone = 0,
-    kFlowControlTypeRx = 1,
-    kFlowControlTypeTx = 2,
-    kFlowControlTypeRxTx = 3,
-    kFlowControlTypeCount
 };
 
 enum {
@@ -264,8 +257,6 @@ public:
 	virtual IOReturn setMulticastMode(bool active);
 	virtual IOReturn setMulticastList(IOEthernetAddress *addrs, UInt32 count);
 	virtual IOReturn getChecksumSupport(UInt32 *checksumMask, UInt32 checksumFamily, bool isOutput);
-	virtual IOReturn setMaxPacketSize(UInt32 maxSize);
-	virtual IOReturn getMaxPacketSize(UInt32 *maxSize) const;
 	virtual IOReturn getMinPacketSize(UInt32 *minSize) const;
     virtual IOReturn setWakeOnMagicPacket(bool active);
     virtual IOReturn getPacketFilters(const OSSymbol *group, UInt32 *filters) const;

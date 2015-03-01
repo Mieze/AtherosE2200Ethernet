@@ -55,7 +55,8 @@ static IOMediumType mediumTypeArray[MEDIUM_INDEX_COUNT] = {
     (kIOMediumEthernet10BaseT | kIOMediumOptionFullDuplex),
     (kIOMediumEthernet100BaseTX | kIOMediumOptionHalfDuplex),
     (kIOMediumEthernet100BaseTX | kIOMediumOptionFullDuplex),
-    (kIOMediumEthernet1000BaseT | kIOMediumOptionFullDuplex)
+    (kIOMediumEthernet1000BaseT | kIOMediumOptionFullDuplex),
+    (kIOMediumEthernet1000BaseT | kIOMediumOptionFullDuplex | kIOMediumOptionFlowControl)
 };
 
 static UInt32 mediumSpeedArray[MEDIUM_INDEX_COUNT] = {
@@ -64,6 +65,7 @@ static UInt32 mediumSpeedArray[MEDIUM_INDEX_COUNT] = {
     10 * MBit,
     100 * MBit,
     100 * MBit,
+    1000 * MBit,
     1000 * MBit
 };
 
@@ -73,10 +75,8 @@ static const char *speed10MName = "10-Megabit";
 static const char *duplexFullName = "Full-duplex";
 static const char *duplexHalfName = "Half-duplex";
 
-static const char *flowControlNames[kFlowControlTypeCount] = {
+static const char *flowControlNames[] = {
     "No flow-control",
-    "Rx flow-control",
-    "Tx flow-control",
     "Rx/Tx flow-control",
 };
 
@@ -135,8 +135,6 @@ bool AtherosE2200::init(OSDictionary *properties)
         pciDeviceData.subsystem_device = 0;
         pciDeviceData.revision = 0;
         hw.pdev = &pciDeviceData;
-        //txIntrCount = 0;
-        //txIntrRate = 0;
         txStallCount = 0;
         txStallLast = 0;
         wolCapable = false;
@@ -144,7 +142,7 @@ bool AtherosE2200::init(OSDictionary *properties)
         enableTSO4 = false;
         enableTSO6 = false;
         enableCSO6 = false;
-        flowControl = kFlowControlTypeNone;
+        flowControl = 0;
         pciPMCtrlOffset = 0;
     }
     
@@ -326,7 +324,6 @@ void AtherosE2200::stop(IOService *provider)
     freeDMADescriptors();
     RELEASE(baseMap);
     baseAddr = NULL;
-    //linuxData.mmio_addr = NULL;
     
     RELEASE(pciDevice);
     
@@ -832,25 +829,6 @@ UInt32 AtherosE2200::getFeatures() const
     return features;
 }
 
-IOReturn AtherosE2200::setMaxPacketSize (UInt32 maxSize)
-{
-    IOReturn result = kIOReturnUnsupported;
-    
-done:
-    return result;
-}
-
-IOReturn AtherosE2200::getMaxPacketSize (UInt32 *maxSize) const
-{
-    IOReturn result = kIOReturnBadArgument;
-    
-    if (maxSize) {
-        *maxSize = kIOEthernetMaxPacketSize;
-        result = kIOReturnSuccess;
-    }
-    return result;
-}
-
 IOReturn AtherosE2200::setWakeOnMagicPacket(bool active)
 {
     IOReturn result = kIOReturnUnsupported;
@@ -939,6 +917,8 @@ IOReturn AtherosE2200::selectMedium(const IONetworkMedium *medium)
     DebugLog("selectMedium() ===>\n");
     
     if (medium) {
+        hw.flowctrl = (ALX_FC_ANEG | ALX_FC_RX | ALX_FC_TX);
+
         switch (medium->getIndex()) {
             case MEDIUM_INDEX_AUTO:
                 hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_10baseT_Half | ADVERTISED_10baseT_Full | ADVERTISED_100baseT_Full | ADVERTISED_100baseT_Half);
@@ -965,8 +945,14 @@ IOReturn AtherosE2200::selectMedium(const IONetworkMedium *medium)
                 
             case MEDIUM_INDEX_1000FD:
                 hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_1000baseT_Full);
+                hw.flowctrl = ALX_FC_ANEG;
+                break;
+                
+            case MEDIUM_INDEX_1000FDFC:
+                hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_1000baseT_Full);
                 break;
         }
+        setLinkDown();
         alx_setup_speed_duplex(&hw, hw.adv_cfg, hw.flowctrl);
         setCurrentMedium(medium);
     }
@@ -1405,14 +1391,10 @@ void AtherosE2200::checkLinkStatus()
     
 	if (alxReadPhyLink() == 0) {
         if (oldSpeed != hw.link_speed) {
-            if (hw.link_speed != SPEED_UNKNOWN) {
+            if (hw.link_speed != SPEED_UNKNOWN)
                 setLinkUp();
-                timerSource->setTimeoutMS(kTimeoutMS);
-            } else {
-                /* Stop watchdog and statistics updates. */
-                timerSource->cancelTimeout();
+            else
                 setLinkDown();
-            }
         }
     }
 }
@@ -1476,6 +1458,13 @@ bool AtherosE2200::checkForDeadlock()
 
 #pragma mark --- hardware specific methods ---
 
+/* AtherosE2200::setLinkUp()
+ *
+ * Establish link speed, duplex and flow control settings. Programm the MAC
+ * according to the new settings and start receive and transmit. In case the
+ * output queue was stalled, restart it too.
+ */
+
 void AtherosE2200::setLinkUp()
 {
     UInt64 mediumSpeed;
@@ -1487,9 +1476,13 @@ void AtherosE2200::setLinkUp()
     /* Get link speed, duplex and flow-control mode. */
     if (hw.link_speed == SPEED_1000) {
         mediumSpeed = kSpeed1000MBit;
-        mediumIndex = MEDIUM_INDEX_1000FD;
         speedName = speed1GName;
         duplexName = duplexFullName;
+        
+        if (flowControl)
+            mediumIndex = MEDIUM_INDEX_1000FDFC;
+        else
+            mediumIndex = MEDIUM_INDEX_1000FD;
     } else if (hw.link_speed == SPEED_100) {
         mediumSpeed = kSpeed100MBit;
         speedName = speed100MName;
@@ -1513,17 +1506,20 @@ void AtherosE2200::setLinkUp()
             duplexName = duplexHalfName;
         }
     }
-    if (flowControl < kFlowControlTypeCount)
-        flowName = flowControlNames[flowControl];
+    if (flowControl & (ALX_FC_RX | ALX_FC_TX))
+        flowName = flowControlNames[1];
     else
-         flowName = flowControlNames[kFlowControlTypeNone];
+        flowName = flowControlNames[0];
 
     intrMask = (ALX_ISR_MISC | ALX_ISR_PHY | ALX_ISR_RX_Q0 | ALX_ISR_TX_Q0);
     alxWriteMem32(ALX_IMR, intrMask);
-
+    
     alx_post_phy_link(&hw);
     alx_enable_aspm(&hw, true, true);
+
+    /* Adjust MAC's speed, duplex and flow control settings. */
     alx_start_mac(&hw);
+    alx_cfg_mac_flowcontrol(&hw, flowControl);
     
     linkUp = true;
     setLinkStatus(kIONetworkLinkValid | kIONetworkLinkActive, mediumTable[mediumIndex], mediumSpeed, NULL);
@@ -1536,13 +1532,22 @@ void AtherosE2200::setLinkUp()
         stalled = false;
         DebugLog("Ethernet [AtherosE2200]: Restart stalled queue!\n");
     }
+    timerSource->setTimeoutMS(kTimeoutMS);
+
     IOLog("Ethernet [AtherosE2200]: Link up on en%u, %s, %s, %s\n", netif->getUnitNumber(), speedName, duplexName, flowName);
 }
 
+/* AtherosE2200::setLinkDown()
+ * 
+ * Stop output queue, watchdog and statistics updates. Also reset the MAC, clear the
+ * tx descriptor ring and reinitialize the MAC.
+ */
+
 void AtherosE2200::setLinkDown()
 {
+    timerSource->cancelTimeout();
+
     deadlockWarn = 0;
-    //txIntrRate = 0;
     
     /* Stop txQueue. */
     txQueue->stop();
@@ -1560,6 +1565,9 @@ void AtherosE2200::setLinkDown()
     /* Cleanup transmitter ring. */
     txClearDescriptors();
 
+    hw.link_speed = SPEED_UNKNOWN;
+    hw.duplex = DUPLEX_UNKNOWN;
+
     /* MAC reset causes all HW settings to be lost, restore all */
     alxConfigure();
     alx_enable_aspm(&hw, false, true);
@@ -1571,7 +1579,7 @@ void AtherosE2200::setLinkDown()
 int AtherosE2200::alxReadPhyLink()
 {
     int error = 0;
-	UInt16 bmsr, giga;
+	UInt16 bmsr, giga, lpa;
     
 	error = alx_read_phy_reg(&hw, MII_BMSR, &bmsr);
     
@@ -1614,24 +1622,17 @@ int AtherosE2200::alxReadPhyLink()
             goto wrong_speed;
 	}
 	hw.duplex = (giga & ALX_GIGA_PSSR_DPLX) ? DUPLEX_FULL : DUPLEX_HALF;
+    
+    /* Get the flow control settings. */
+    flowControl = 0;
 
-    switch (giga & ALX_GIGA_PSSR_FC_MASK) {
-        case ALX_GIGA_PSSR_FC_RXEN:
-            flowControl = kFlowControlTypeRx;
-            break;
-            
-        case ALX_GIGA_PSSR_FC_TXEN:
-            flowControl = kFlowControlTypeTx;
-            break;
-            
-        case ALX_GIGA_PSSR_FC_MASK:
-            flowControl = kFlowControlTypeRxTx;
-            break;
-            
-        default:
-            flowControl = kFlowControlTypeNone;
-            break;
-    }
+    error = alx_read_phy_reg(&hw, MII_LPA, &lpa);
+    
+    if (error)
+        goto done;
+    
+    if (lpa & LPA_PAUSE_CAP)
+        flowControl = (ALX_FC_RX | ALX_FC_TX) & hw.flowctrl;
     
 done:
 	return error;
@@ -1674,10 +1675,13 @@ bool AtherosE2200::initPCIConfigSpace(IOPCIDevice *provider)
             DebugLog("Ethernet [AtherosE2200]: PME# from D3 (cold/hot) supported.\n");
         }
         pciPMCtrlOffset = pmCapOffset + kIOPCIPMControl;
+        
+        /* Make sure the device is in D0 power state. */
+        provider->enablePCIPowerManagement(kPCIPMCSPowerStateD0);
+        setPowerStateWakeAction(this, NULL, NULL, NULL, NULL);
     } else {
         IOLog("Ethernet [AtherosE2200]: PCI power management unsupported.\n");
     }
-    provider->enablePCIPowerManagement(kPCIPMCSPowerStateD0);
     
     /* Get PCIe link information. */
     if (provider->findPCICapability(kIOPCIPCIExpressCapability, &pcieCapOffset)) {
@@ -2041,7 +2045,10 @@ void AtherosE2200::alxRestart()
     txQueue->flush();
     linkUp = false;
     setLinkStatus(kIONetworkLinkValid);
-    
+
+    hw.link_speed = SPEED_UNKNOWN;
+    hw.duplex = DUPLEX_UNKNOWN;
+
     /* Reset NIC and cleanup both descriptor rings. */
     alxDisableIRQ();
 	alx_reset_mac(&hw);
