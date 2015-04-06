@@ -125,7 +125,11 @@ bool AtherosE2200::init(OSDictionary *properties)
         promiscusMode = false;
         multicastMode = false;
         linkUp = false;
+        
+#ifndef __PRIVATE_SPI__
         stalled = false;
+#endif /* __PRIVATE_SPI__ */
+        
         useMSI = false;
         chip = kChipUnkown;
         powerState = 0;
@@ -135,8 +139,12 @@ bool AtherosE2200::init(OSDictionary *properties)
         pciDeviceData.subsystem_device = 0;
         pciDeviceData.revision = 0;
         hw.pdev = &pciDeviceData;
+        
+#ifndef __PRIVATE_SPI__
         txStallCount = 0;
         txStallLast = 0;
+#endif /* __PRIVATE_SPI__ */
+
         wolCapable = false;
         gbCapable = false;
         enableTSO4 = false;
@@ -421,11 +429,15 @@ IOReturn AtherosE2200::enable(IONetworkInterface *netif)
         interruptSource->enable();
     
     txDescDoneCount = txDescDoneLast = 0;
-    txStallCount = txStallLast = 0;
     deadlockWarn = 0;
+
+#ifndef __PRIVATE_SPI__
     txQueue->setCapacity(kTransmitQueueCapacity);
-    isEnabled = true;
+    txStallCount = txStallLast = 0;
     stalled = false;
+#endif /* __PRIVATE_SPI__ */
+    
+    isEnabled = true;
     
     result = kIOReturnSuccess;
     
@@ -444,16 +456,21 @@ IOReturn AtherosE2200::disable(IONetworkInterface *netif)
     if (!isEnabled)
         goto done;
     
+#ifdef __PRIVATE_SPI__
+    netif->stopOutputThread();
+    netif->flushOutputQueue();
+#else
     txQueue->stop();
     txQueue->flush();
     txQueue->setCapacity(0);
-    isEnabled = false;
+    txStallCount = txStallLast = 0;
     stalled = false;
+#endif /* __PRIVATE_SPI__ */
 
     timerSource->cancelTimeout();
     txDescDoneCount = txDescDoneLast = 0;
-    txStallCount = txStallLast = 0;
     multicastFilter[0] = multicastFilter[1] = 0;
+    isEnabled = false;
 
     /* In case we are using msi disable the interrupt. */
     if (useMSI)
@@ -478,6 +495,133 @@ IOReturn AtherosE2200::disable(IONetworkInterface *netif)
 done:
     return result;
 }
+
+#ifdef __PRIVATE_SPI__
+
+IOReturn AtherosE2200::outputStart(IONetworkInterface *interface, IOOptionBits options )
+{
+    IOPhysicalSegment txSegments[kMaxSegs];
+    mbuf_t m;
+    QCATxDesc *desc;
+    IOReturn result = kIOReturnNoResources;
+    UInt32 numDescs;
+    UInt32 cmd;
+    UInt32 totalLen;
+    UInt32 mssValue;
+    UInt32 word1;
+    UInt32 numSegs;
+    UInt32 lastSeg;
+    UInt32 index;
+    mbuf_tso_request_flags_t tsoFlags;
+    mbuf_csum_request_flags_t checksums;
+    UInt16 vlanTag;
+    UInt16 segLen;
+    UInt16 i;
+    UInt16 count;
+    
+    //DebugLog("outputPacket() ===>\n");
+    count = 0;
+
+    if (!(isEnabled && linkUp)) {
+        DebugLog("Ethernet [AtherosE2200]: Interface down. Dropping packets.\n");
+        goto done;
+    }
+    while ((txNumFreeDesc > (kMaxSegs + 3)) && (interface->dequeueOutputPackets(1, &m, NULL, NULL, NULL) == kIOReturnSuccess)) {
+        numDescs = 0;
+        cmd = 0;
+        totalLen = 0;
+
+        if (mbuf_get_tso_requested(m, &tsoFlags, &mssValue)) {
+            DebugLog("Ethernet [AtherosE2200]: mbuf_get_tso_requested() failed. Dropping packet.\n");
+            freePacket(m);
+            continue;
+        }
+        /* First prepare the header and the command bits. */
+        if (tsoFlags & (MBUF_TSO_IPV4 | MBUF_TSO_IPV6)) {
+            if (tsoFlags & MBUF_TSO_IPV4) {
+                /* Correct the pseudo header checksum. */
+                adjustIPv4Header(m);
+                
+                /* Setup the command bits for TSO over IPv4. */
+                cmd = (((mssValue & TPD_MSS_MASK) << TPD_MSS_SHIFT) | TPD_IPV4 | TPD_LSO_EN | kMinL4HdrOffsetV4);
+            } else {
+                /* Correct the pseudo header checksum and get the size of the packet including all headers. */
+                totalLen = adjustIPv6Header(m);
+                
+                /* Setup the command bits for TSO over IPv6. */
+                cmd = (((mssValue & TPD_MSS_MASK) << TPD_MSS_SHIFT) | TPD_LSO_V2 | TPD_LSO_EN | kMinL4HdrOffsetV6);
+                numDescs = 1;
+            }
+        } else {
+            /* We use mssValue as a dummy here because we don't need it anymore. */
+            mbuf_get_csum_requested(m, &checksums, &mssValue);
+            
+            /* Next setup the checksum command bits. */
+            alxGetChkSumCommand(&cmd, checksums);
+        }
+        /* Next get the VLAN tag and command bit. */
+        cmd |= (!mbuf_get_vlan_tag(m, &vlanTag)) ? TPD_INS_VLTAG : 0;
+        
+        /* Finally get the physical segments. */
+        numSegs = txMbufCursor->getPhysicalSegmentsWithCoalesce(m, &txSegments[0], kMaxSegs);
+        numDescs += numSegs;
+        
+        if (!numSegs) {
+            DebugLog("Ethernet [AtherosE2200]: getPhysicalSegmentsWithCoalesce() failed. Dropping packet.\n");
+            etherStats->dot3TxExtraEntry.resourceErrors++;
+            freePacket(m);
+            continue;
+        }
+        OSAddAtomic(-numDescs, &txNumFreeDesc);
+        index = txNextDescIndex;
+        txNextDescIndex = (txNextDescIndex + numDescs) & kTxDescMask;
+        lastSeg = numSegs - 1;
+        
+        /* Setup the context descriptor for TSO over IPv6. */
+        if (tsoFlags & MBUF_TSO_IPV6) {
+            desc = &txDescArray[index];
+            
+            desc->vlanTag = OSSwapHostToLittleInt16(vlanTag);
+            desc->word1 = OSSwapHostToLittleInt32(cmd);
+            desc->adrl.l.pktLength = OSSwapHostToLittleInt32(totalLen);
+            
+            ++index &= kTxDescMask;
+        }
+        /* And finally fill in the data descriptors. */
+        for (i = 0; i < numSegs; i++) {
+            desc = &txDescArray[index];
+            word1 = cmd;
+            segLen = (UInt16)txSegments[i].length;
+            
+            if (i == lastSeg) {
+                word1 |= TPD_EOP;
+                txMbufArray[index] = m;
+            } else {
+                txMbufArray[index] = NULL;
+            }
+            desc->vlanTag = OSSwapHostToLittleInt16(vlanTag);
+            desc->length = OSSwapHostToLittleInt16(segLen);
+            desc->word1 = OSSwapHostToLittleInt32(word1);
+            desc->adrl.addr = OSSwapHostToLittleInt64(txSegments[i].location);
+            
+            ++index &= kTxDescMask;
+        }
+        count++;
+    }
+    if (count) {
+        /* flush updates before updating hardware */
+        OSSynchronizeIO();
+        alxWriteMem16(ALX_TPD_PRI0_PIDX, txNextDescIndex);
+    }
+    result = (txNumFreeDesc > (kMaxSegs + 3)) ? kIOReturnSuccess : kIOReturnNoResources;
+
+done:
+    //DebugLog("outputStart() <===\n");
+    
+    return result;
+}
+
+#else
 
 UInt32 AtherosE2200::outputPacket(mbuf_t m, void *param)
 {
@@ -601,6 +745,8 @@ error:
     goto done;
 }
 
+#endif /* __PRIVATE_SPI__ */
+
 void AtherosE2200::getPacketBufferConstraints(IOPacketBufferConstraints *constraints) const
 {
     DebugLog("getPacketBufferConstraints() ===>\n");
@@ -641,6 +787,11 @@ bool AtherosE2200::configureInterface(IONetworkInterface *interface)
 {
     char modelName[kNameLenght];
     IONetworkData *data;
+    
+#ifdef __PRIVATE_SPI__
+    IOReturn error;
+#endif /* __PRIVATE_SPI__ */
+
     bool result;
     
     DebugLog("configureInterface() ===>\n");
@@ -674,6 +825,17 @@ bool AtherosE2200::configureInterface(IONetworkInterface *interface)
             goto done;
         }
     }
+    
+#ifdef __PRIVATE_SPI__
+    error = interface->configureOutputPullModel(512, 0, 0, IONetworkInterface::kOutputPacketSchedulingModelNormal);
+    
+    if (error != kIOReturnSuccess) {
+        IOLog("Ethernet [AtherosE2200]: configureOutputPullModel() failed\n.");
+        result = false;
+        goto done;
+    }
+#endif /* __PRIVATE_SPI__ */
+
     if ((chip == kChipAR8162) || (chip == kChipAR8172))
         snprintf(modelName, kNameLenght, "Qualcomm Atheros %s PCI Express Fast Ethernet", chipNames[chip]);
     else
@@ -1261,11 +1423,18 @@ void AtherosE2200::txInterrupt()
             OSIncrementAtomic(&txNumFreeDesc);
             ++txDirtyDescIndex &= kTxDescMask;
         }
+        
+#ifdef __PRIVATE_SPI__
+        if (txNumFreeDesc > kTxQueueWakeTreshhold)
+            netif->signalOutputThread();
+#else
         if (stalled && (txNumFreeDesc > kTxQueueWakeTreshhold)) {
             DebugLog("Ethernet [AtherosE2200]: Restart stalled queue!\n");
             txQueue->service(IOBasicOutputQueue::kServiceAsync);
             stalled = false;
         }
+#endif /* __PRIVATE_SPI__ */
+
     }
     etherStats->dot3TxExtraEntry.interrupts++;
 }
@@ -1434,7 +1603,12 @@ bool AtherosE2200::checkForDeadlock()
 {
     bool deadlock = false;
     
-    if (((txDescDoneCount == txDescDoneLast) && (txNumFreeDesc < kNumTxDesc)) || (stalled && (txStallCount ==txStallLast))) {
+#ifdef __PRIVATE_SPI__
+    if ((txDescDoneCount == txDescDoneLast) && (txNumFreeDesc < kNumTxDesc))
+#else
+    if (((txDescDoneCount == txDescDoneLast) && (txNumFreeDesc < kNumTxDesc)) || (stalled && (txStallCount ==txStallLast)))
+#endif /* __PRIVATE_SPI__ */
+    {
         if (++deadlockWarn >= kTxDeadlockTreshhold) {
 #ifdef DEBUG
             UInt16 i, index;
@@ -1524,6 +1698,10 @@ void AtherosE2200::setLinkUp()
     linkUp = true;
     setLinkStatus(kIONetworkLinkValid | kIONetworkLinkActive, mediumTable[mediumIndex], mediumSpeed, NULL);
     
+#ifdef __PRIVATE_SPI__
+    /* Start output thread, statistics update and watchdog. */
+    netif->startOutputThread();
+#else
     /* Restart txQueue, statistics updates and watchdog. */
     txQueue->start();
     
@@ -1532,6 +1710,8 @@ void AtherosE2200::setLinkUp()
         stalled = false;
         DebugLog("Ethernet [AtherosE2200]: Restart stalled queue!\n");
     }
+#endif /* __PRIVATE_SPI__ */
+
     timerSource->setTimeoutMS(kTimeoutMS);
 
     IOLog("Ethernet [AtherosE2200]: Link up on en%u, %s, %s, %s\n", netif->getUnitNumber(), speedName, duplexName, flowName);
@@ -1549,9 +1729,15 @@ void AtherosE2200::setLinkDown()
 
     deadlockWarn = 0;
     
+#ifdef __PRIVATE_SPI__
+    /* Stop output thread and flush output queue. */
+    netif->stopOutputThread();
+    netif->flushOutputQueue();
+#else
     /* Stop txQueue. */
     txQueue->stop();
     txQueue->flush();
+#endif /* __PRIVATE_SPI__ */
     
     /* Update link status. */
     linkUp = false;
@@ -2040,9 +2226,18 @@ done:
 
 void AtherosE2200::alxRestart()
 {
-    /* Stop and cleanup txQueue. Also set the link status to down. */
+    
+#ifdef __PRIVATE_SPI__
+    /* Stop output thread and flush txQueue */
+    netif->stopOutputThread();
+    netif->flushOutputQueue();
+#else
+    /* Stop and cleanup txQueue. */
     txQueue->stop();
     txQueue->flush();
+#endif /* __PRIVATE_SPI__ */
+    
+    /*  Also set the link status to down. */
     linkUp = false;
     setLinkStatus(kIONetworkLinkValid);
 
@@ -2347,7 +2542,10 @@ void AtherosE2200::timerAction(IOTimerEventSource *timer)
         
 done:
     txDescDoneLast = txDescDoneCount;
+    
+#ifndef __PRIVATE_SPI__
     txStallLast = txStallCount;
+#endif /* __PRIVATE_SPI__ */
 
     //DebugLog("timerAction() <===\n");
 }

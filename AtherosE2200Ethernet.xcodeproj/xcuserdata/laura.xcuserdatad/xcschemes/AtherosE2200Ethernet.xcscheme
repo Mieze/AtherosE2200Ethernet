@@ -39,6 +39,15 @@
       ignoresPersistentStateOnLaunch = "NO"
       debugDocumentVersioning = "YES"
       allowLocationSimulation = "YES">
+      <MacroExpansion>
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "D325856E198482FF00C05A72"
+            BuildableName = "AtherosE2200Ethernet.kext"
+            BlueprintName = "AtherosE2200Ethernet"
+            ReferencedContainer = "container:AtherosE2200Ethernet.xcodeproj">
+         </BuildableReference>
+      </MacroExpansion>
       <AdditionalOptions>
       </AdditionalOptions>
    </LaunchAction>

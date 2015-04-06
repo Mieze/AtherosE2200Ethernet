@@ -158,7 +158,7 @@ typedef struct QCARxTxDescArray {
 #define kTimeoutMS 1000
 
 /* Treshhold value to wake a stalled queue */
-#define kTxQueueWakeTreshhold (kNumTxDesc / 4)
+#define kTxQueueWakeTreshhold (kNumTxDesc / 8)
 
 /* transmitter deadlock treshhold in seconds. */
 #define kTxDeadlockTreshhold 5
@@ -235,7 +235,11 @@ public:
 	virtual IOReturn enable(IONetworkInterface *netif);
 	virtual IOReturn disable(IONetworkInterface *netif);
 	
-	virtual UInt32 outputPacket(mbuf_t m, void *param);
+#ifdef __PRIVATE_SPI__
+    virtual IOReturn outputStart(IONetworkInterface *interface, IOOptionBits options );
+#else
+    virtual UInt32 outputPacket(mbuf_t m, void *param);
+#endif /* __PRIVATE_SPI__ */
 	
 	virtual void getPacketBufferConstraints(IOPacketBufferConstraints *constraints) const;
 	
@@ -324,8 +328,12 @@ private:
     UInt64 txDescDoneCount;
     UInt64 txDescDoneLast;
     SInt32 txNumFreeDesc;
+    
+#ifndef __PRIVATE_SPI__
     UInt32 txStallCount;
     UInt32 txStallLast;
+#endif /* __PRIVATE_SPI__ */
+
     UInt16 txNextDescIndex;
     UInt16 txDirtyDescIndex;
     
@@ -362,7 +370,11 @@ private:
 	bool promiscusMode;
 	bool multicastMode;
     bool linkUp;
+    
+#ifndef __PRIVATE_SPI__
     bool stalled;
+#endif /* __PRIVATE_SPI__ */
+    
     bool useMSI;
     bool gbCapable;;
     bool wolCapable;

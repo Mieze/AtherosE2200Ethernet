@@ -12,6 +12,11 @@
 		D325859119848CCA00C05A72 /* hw.h in Headers */ = {isa = PBXBuildFile; fileRef = D325858E19848CCA00C05A72 /* hw.h */; };
 		D325859219848CCA00C05A72 /* reg.h in Headers */ = {isa = PBXBuildFile; fileRef = D325858F19848CCA00C05A72 /* reg.h */; };
 		D3258594198492CD00C05A72 /* hw.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D3258593198492CD00C05A72 /* hw.cpp */; };
+		D3B795B11ABE590400CE2796 /* hw.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D3258593198492CD00C05A72 /* hw.cpp */; };
+		D3B795B21ABE590400CE2796 /* AtherosE2200Ethernet.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D325857B198482FF00C05A72 /* AtherosE2200Ethernet.cpp */; };
+		D3B795B51ABE590400CE2796 /* hw.h in Headers */ = {isa = PBXBuildFile; fileRef = D325858E19848CCA00C05A72 /* hw.h */; };
+		D3B795B61ABE590400CE2796 /* reg.h in Headers */ = {isa = PBXBuildFile; fileRef = D325858F19848CCA00C05A72 /* reg.h */; };
+		D3B795B81ABE590400CE2796 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = D3258577198482FF00C05A72 /* InfoPlist.strings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,11 +39,23 @@
 		D32A20701986226500E64285 /* uapi-ethtool.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "uapi-ethtool.h"; sourceTree = "<group>"; };
 		D32A20711986230A00E64285 /* if_ether.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = if_ether.h; sourceTree = "<group>"; };
 		D32A20721986236A00E64285 /* ethtool.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ethtool.h; sourceTree = "<group>"; };
+		D34D36C81AD2F79F00EEEC08 /* APPLE_LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = APPLE_LICENSE; sourceTree = "<group>"; };
 		D3581701198FB4D2009096B2 /* uapi-ip.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "uapi-ip.h"; sourceTree = "<group>"; };
+		D3B795AD1ABE58DE00CE2796 /* IONetworkController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = IONetworkController.h; sourceTree = "<group>"; };
+		D3B795AE1ABE58DE00CE2796 /* IONetworkInterface.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = IONetworkInterface.h; sourceTree = "<group>"; };
+		D3B795BD1ABE590400CE2796 /* AtherosE2200Ethernet.kext */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AtherosE2200Ethernet.kext; sourceTree = BUILT_PRODUCTS_DIR; };
+		D3B795BF1ABE598F00CE2796 /* AtherosE2200EthernetV2-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "AtherosE2200EthernetV2-Prefix.pch"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		D325856A198482FF00C05A72 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D3B795B31ABE590400CE2796 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -61,6 +78,7 @@
 			isa = PBXGroup;
 			children = (
 				D325856F198482FF00C05A72 /* AtherosE2200Ethernet.kext */,
+				D3B795BD1ABE590400CE2796 /* AtherosE2200Ethernet.kext */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -89,6 +107,8 @@
 				D32585991984E49D00C05A72 /* ALX */,
 				D325859A1984E4CD00C05A72 /* Linux compatibility */,
 				D32585871984866F00C05A72 /* gpl.txt */,
+				D34D36C81AD2F79F00EEEC08 /* APPLE_LICENSE */,
+				D3B795AC1ABE58CA00CE2796 /* Apple Headers */,
 				D3258575198482FF00C05A72 /* Supporting Files */,
 			);
 			path = AtherosE2200Ethernet;
@@ -100,6 +120,7 @@
 				D3258576198482FF00C05A72 /* AtherosE2200Ethernet-Info.plist */,
 				D3258577198482FF00C05A72 /* InfoPlist.strings */,
 				D325857D198482FF00C05A72 /* AtherosE2200Ethernet-Prefix.pch */,
+				D3B795BF1ABE598F00CE2796 /* AtherosE2200EthernetV2-Prefix.pch */,
 			);
 			name = "Supporting Files";
 			sourceTree = "<group>";
@@ -130,6 +151,15 @@
 			name = "Linux compatibility";
 			sourceTree = "<group>";
 		};
+		D3B795AC1ABE58CA00CE2796 /* Apple Headers */ = {
+			isa = PBXGroup;
+			children = (
+				D3B795AD1ABE58DE00CE2796 /* IONetworkController.h */,
+				D3B795AE1ABE58DE00CE2796 /* IONetworkInterface.h */,
+			);
+			name = "Apple Headers";
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXHeadersBuildPhase section */
@@ -139,6 +169,15 @@
 			files = (
 				D325859119848CCA00C05A72 /* hw.h in Headers */,
 				D325859219848CCA00C05A72 /* reg.h in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D3B795B41ABE590400CE2796 /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D3B795B51ABE590400CE2796 /* hw.h in Headers */,
+				D3B795B61ABE590400CE2796 /* reg.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -164,6 +203,25 @@
 			productReference = D325856F198482FF00C05A72 /* AtherosE2200Ethernet.kext */;
 			productType = "com.apple.product-type.kernel-extension";
 		};
+		D3B795AF1ABE590400CE2796 /* AtherosE2200EthernetV2 */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D3B795BA1ABE590400CE2796 /* Build configuration list for PBXNativeTarget "AtherosE2200EthernetV2" */;
+			buildPhases = (
+				D3B795B01ABE590400CE2796 /* Sources */,
+				D3B795B31ABE590400CE2796 /* Frameworks */,
+				D3B795B41ABE590400CE2796 /* Headers */,
+				D3B795B71ABE590400CE2796 /* Resources */,
+				D3B795B91ABE590400CE2796 /* Rez */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AtherosE2200EthernetV2;
+			productName = AtherosE2200Ethernet;
+			productReference = D3B795BD1ABE590400CE2796 /* AtherosE2200Ethernet.kext */;
+			productType = "com.apple.product-type.kernel-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -186,6 +244,7 @@
 			projectRoot = "";
 			targets = (
 				D325856E198482FF00C05A72 /* AtherosE2200Ethernet */,
+				D3B795AF1ABE590400CE2796 /* AtherosE2200EthernetV2 */,
 			);
 		};
 /* End PBXProject section */
@@ -199,10 +258,25 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D3B795B71ABE590400CE2796 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D3B795B81ABE590400CE2796 /* InfoPlist.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXRezBuildPhase section */
 		D325856D198482FF00C05A72 /* Rez */ = {
+			isa = PBXRezBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D3B795B91ABE590400CE2796 /* Rez */ = {
 			isa = PBXRezBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -218,6 +292,15 @@
 			files = (
 				D3258594198492CD00C05A72 /* hw.cpp in Sources */,
 				D325857C198482FF00C05A72 /* AtherosE2200Ethernet.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D3B795B01ABE590400CE2796 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D3B795B11ABE590400CE2796 /* hw.cpp in Sources */,
+				D3B795B21ABE590400CE2796 /* AtherosE2200Ethernet.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -268,7 +351,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.8;
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx10.8;
 			};
@@ -302,7 +385,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.8;
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
 				SDKROOT = macosx10.8;
 			};
 			name = Release;
@@ -316,6 +399,7 @@
 				GCC_PREFIX_HEADER = "AtherosE2200Ethernet/AtherosE2200Ethernet-Prefix.pch";
 				GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = YES;
 				INFOPLIST_FILE = "AtherosE2200Ethernet/AtherosE2200Ethernet-Info.plist";
+				MACOSX_DEPLOYMENT_TARGET = 10.8;
 				MODULE_NAME = com.insanelymac.AtherosE2200Ethernet;
 				MODULE_VERSION = 1.0.1;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -333,9 +417,46 @@
 				GCC_PREFIX_HEADER = "AtherosE2200Ethernet/AtherosE2200Ethernet-Prefix.pch";
 				GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = YES;
 				INFOPLIST_FILE = "AtherosE2200Ethernet/AtherosE2200Ethernet-Info.plist";
+				MACOSX_DEPLOYMENT_TARGET = 10.8;
 				MODULE_NAME = com.insanelymac.AtherosE2200Ethernet;
 				MODULE_VERSION = 1.0.1;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx10.8;
+				WRAPPER_EXTENSION = kext;
+			};
+			name = Release;
+		};
+		D3B795BB1ABE590400CE2796 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = $MODULE_VERSION;
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = "AtherosE2200Ethernet/AtherosE2200EthernetV2-Prefix.pch";
+				GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = YES;
+				INFOPLIST_FILE = "AtherosE2200Ethernet/AtherosE2200Ethernet-Info.plist";
+				MACOSX_DEPLOYMENT_TARGET = 10.8;
+				MODULE_NAME = com.insanelymac.AtherosE2200Ethernet;
+				MODULE_VERSION = 2.0.0d1;
+				PRODUCT_NAME = AtherosE2200Ethernet;
+				SDKROOT = macosx10.8;
+				WRAPPER_EXTENSION = kext;
+			};
+			name = Debug;
+		};
+		D3B795BC1ABE590400CE2796 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = $MODULE_VERSION;
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = "AtherosE2200Ethernet/AtherosE2200EthernetV2-Prefix.pch";
+				GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = YES;
+				INFOPLIST_FILE = "AtherosE2200Ethernet/AtherosE2200Ethernet-Info.plist";
+				MACOSX_DEPLOYMENT_TARGET = 10.8;
+				MODULE_NAME = com.insanelymac.AtherosE2200Ethernet;
+				MODULE_VERSION = 2.0.0d1;
+				PRODUCT_NAME = AtherosE2200Ethernet;
 				SDKROOT = macosx10.8;
 				WRAPPER_EXTENSION = kext;
 			};
@@ -358,6 +479,15 @@
 			buildConfigurations = (
 				D3258581198482FF00C05A72 /* Debug */,
 				D3258582198482FF00C05A72 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D3B795BA1ABE590400CE2796 /* Build configuration list for PBXNativeTarget "AtherosE2200EthernetV2" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D3B795BB1ABE590400CE2796 /* Debug */,
+				D3B795BC1ABE590400CE2796 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

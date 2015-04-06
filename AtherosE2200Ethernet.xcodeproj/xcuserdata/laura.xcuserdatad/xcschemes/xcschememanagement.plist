@@ -9,10 +9,20 @@
 			<key>orderHint</key>
 			<integer>0</integer>
 		</dict>
+		<key>AtherosE2200EthernetV2.xcscheme</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>1</integer>
+		</dict>
 	</dict>
 	<key>SuppressBuildableAutocreation</key>
 	<dict>
 		<key>D325856E198482FF00C05A72</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>D3B795AF1ABE590400CE2796</key>
 		<dict>
 			<key>primary</key>
 			<true/>
