@@ -44,6 +44,10 @@ Troubleshooting
   - Keep in mind that there are many manufacturers of network equipment. Although Ethernet is an IEEE standard, different implementations may show different behavior causing incompatibilities. In case you are having trouble try a different switch or a different cable.
 
 Changelog
+  - Version 2.0.0 (2015-04-21)
+    - Uses Apple's private driver interface introduced with 10.8.
+    - Supports packet scheduling with QFQ.
+    - Please note that 2.0.0 is identical to 2.0.0d1. Only the version number has changed.
   - Version 1.0.1 (2015-03-01)
     - Reworked media selection and reporting.
     - Improved flow control support.
