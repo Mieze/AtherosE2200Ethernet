@@ -194,8 +194,24 @@
 #define ALX_SERDES_PHYCLK_SLWDWN			BIT(18)
 #define ALX_SERDES_MACCLK_SLWDWN			BIT(17)
 
+#define ALX_LPI_DECISN_TIMER            0x143C
+
 #define ALX_LPI_CTRL					0x1440
+#define ALX_LPI_CTRL_CHK_DA             BIT(31)
+#define ALX_LPI_CTRL_ENH_TO_MASK        0x1FFFUL
+#define ALX_LPI_CTRL_ENH_TO_SHIFT       12
+#define ALX_LPI_CTRL_ENH_TH_MASK        0x1FUL
+#define ALX_LPI_CTRL_ENH_TH_SHIFT       6
+#define ALX_LPI_CTRL_ENH_EN             BIT(5)
+#define ALX_LPI_CTRL_CHK_RX             BIT(4)
+#define ALX_LPI_CTRL_CHK_STATE          BIT(3)
+#define ALX_LPI_CTRL_GMII               BIT(2)
+#define ALX_LPI_CTRL_TO_PHY             BIT(1)
 #define ALX_LPI_CTRL_EN					BIT(0)
+
+#define ALX_LPI_WAIT                    0x1444
+#define ALX_LPI_WAIT_TIMER_MASK         0xFFFFUL
+#define ALX_LPI_WAIT_TIMER_SHIFT        0
 
 /* for B0+, bit[13..] for C0+ */
 #define ALX_HRTBT_EXT_CTRL				0x1AD0
@@ -885,6 +901,7 @@
 
 #define ALX_MIIEXT_CLDCTRL3				0x8003
 #define ALX_CLDCTRL3_BP_CABLE1TH_DET_GT			0x8000
+#define ALX_CLDCTRL3_AZ_DISAMP              0x1000
 
 #define ALX_MIIEXT_CLDCTRL5				0x8005
 #define ALX_CLDCTRL5_BP_VD_HLFBIAS			0x4000
@@ -895,7 +912,39 @@
 #define ALX_CLDCTRL6_CAB_LEN_SHORT1G			116
 #define ALX_CLDCTRL6_CAB_LEN_SHORT100M			152
 
+#define ALX_MIIEXT_CLDCTRL7                 0x8007
+#define ALX_CLDCTRL7_VDHLF_BIAS_TH_MASK     0x7FU
+#define ALX_CLDCTRL7_VDHLF_BIAS_TH_SHIFT    9
+#define ALX_CLDCTRL7_AFE_AZ_MASK            0x1FU
+#define ALX_CLDCTRL7_AFE_AZ_SHIFT           4
+#define ALX_CLDCTRL7_SIDE_PEAK_TH_MASK      0xFU
+#define ALX_CLDCTRL7_SIDE_PEAK_TH_SHIFT     0
+#define ALX_CLDCTRL7_DEF                    0x6BF6
+
+#define ALX_MIIEXT_AZCTRL                   0x8008
+#define ALX_AZCTRL_SHORT_TH_MASK            0xFFU
+#define ALX_AZCTRL_SHORT_TH_SHIFT           8
+#define ALX_AZCTRL_LONG_TH_MASK             0xFFU
+#define ALX_AZCTRL_LONG_TH_SHIFT            0
+#define ALX_AZCTRL_DEF                      0x1629
+
+#define ALX_MIIEXT_AZCTRL2                  0x8009
+#define ALX_AZCTRL2_WAKETRNING_MASK         0xFFU
+#define ALX_AZCTRL2_WAKETRNING_SHIFT        8
+#define ALX_AZCTRL2_QUIET_TIMER_MASK        0x3U
+#define ALX_AZCTRL2_QUIET_TIMER_SHIFT       6
+#define ALX_AZCTRL2_PHAS_JMP2               0x0010
+#define ALX_AZCTRL2_CLKTRCV_125MD16         0x0008
+#define ALX_AZCTRL2_GATE1000_EN             0x0004
+#define ALX_AZCTRL2_AVRG_FREQ               0x0002
+#define ALX_AZCTRL2_PHAS_JMP4               0x0001
+#define ALX_AZCTRL2_DEF                     0x32C0
+
+#define ALX_MIIEXT_AZCTRL6                  0x800D
+
 #define ALX_MIIEXT_VDRVBIAS				0x8062
+#define ALX_VDRVBIAS_SEL_MASK               0x3U
+#define ALX_VDRVBIAS_SEL_SHIFT              0
 #define ALX_VDRVBIAS_DEF				0x3
 
 /********* dev 7 **********/
@@ -905,6 +954,14 @@
 #define ALX_LOCAL_EEEADV_1000BT				0x0004
 #define ALX_LOCAL_EEEADV_100BT				0x0002
 
+#define ALX_MIIEXT_REMOTE_EEEADV            0x3D
+#define ALX_REMOTE_EEEADV_1000BT            0x0004
+#define ALX_REMOTE_EEEADV_100BT             0x0002
+
+#define ALX_MIIEXT_EEE_ANEG                 0x8000
+#define ALX_EEE_ANEG_1000M                  0x0004
+#define ALX_EEE_ANEG_100M                   0x0002
+
 #define ALX_MIIEXT_AFE					0x801A
 #define ALX_AFE_10BT_100M_TH				0x0040
 
@@ -913,7 +970,17 @@
 #define ALX_MIIEXT_S3DIG10_SL				0x0001
 #define ALX_MIIEXT_S3DIG10_DEF				0
 
+#define ALX_MIIEXT_NLP34                    0x8025
+/* for 160m */
+#define ALX_MIIEXT_NLP34_DEF                0x1010
+
+#define ALX_MIIEXT_NLP56                    0x8026
+/* for 160m */
+#define ALX_MIIEXT_NLP56_DEF                0x1010
+
 #define ALX_MIIEXT_NLP78				0x8027
+/* for 160m */
+#define ALX_MIIEXT_NLP78_160M_DEF           0x8D05
 #define ALX_MIIEXT_NLP78_120M_DEF			0x8A05
 
 #endif

@@ -55,6 +55,7 @@ static IOMediumType mediumTypeArray[MEDIUM_INDEX_COUNT] = {
     (kIOMediumEthernet10BaseT | kIOMediumOptionFullDuplex),
     (kIOMediumEthernet100BaseTX | kIOMediumOptionHalfDuplex),
     (kIOMediumEthernet100BaseTX | kIOMediumOptionFullDuplex),
+    (kIOMediumEthernet100BaseTX | kIOMediumOptionFullDuplex | kIOMediumOptionFlowControl),
     (kIOMediumEthernet1000BaseT | kIOMediumOptionFullDuplex),
     (kIOMediumEthernet1000BaseT | kIOMediumOptionFullDuplex | kIOMediumOptionFlowControl)
 };
@@ -63,6 +64,7 @@ static UInt32 mediumSpeedArray[MEDIUM_INDEX_COUNT] = {
     0,
     10 * MBit,
     10 * MBit,
+    100 * MBit,
     100 * MBit,
     100 * MBit,
     1000 * MBit,
@@ -197,10 +199,6 @@ void AtherosE2200::free()
 bool AtherosE2200::start(IOService *provider)
 {
     OSString *versionString;
-    OSNumber *intrRate;
-    OSBoolean *tso4;
-    OSBoolean *tso6;
-    OSBoolean *csoV6;
     UInt32 newIntrRate;
     bool result;
     
@@ -229,26 +227,8 @@ bool AtherosE2200::start(IOService *provider)
     if (!initPCIConfigSpace(pciDevice)) {
         goto error2;
     }
-    tso4 = OSDynamicCast(OSBoolean, getProperty(kEnableTSO4Name));
-    enableTSO4 = (tso4) ? tso4->getValue() : false;
-    
-    IOLog("Ethernet [AtherosE2200]: TCP/IPv4 segmentation offload %s.\n", enableTSO4 ? onName : offName);
-    
-    tso6 = OSDynamicCast(OSBoolean, getProperty(kEnableTSO6Name));
-    enableTSO6 = (tso6) ? tso6->getValue() : false;
-    
-    IOLog("Ethernet [AtherosE2200]: TCP/IPv6 segmentation offload %s.\n", enableTSO6 ? onName : offName);
-    
-    csoV6 = OSDynamicCast(OSBoolean, getProperty(kEnableCSO6Name));
-    enableCSO6 = (csoV6) ? csoV6->getValue() : false;
-    
-    IOLog("Ethernet [AtherosE2200]: TCP/IPv6 checksum offload %s.\n", enableCSO6 ? onName : offName);
-
-    intrRate = OSDynamicCast(OSNumber, getProperty(kIntrRateName));
-    newIntrRate = 5000;
-    
-    if (intrRate)
-        newIntrRate = intrRate->unsigned32BitValue();
+    /* Get the config values from Info.plist. */
+    getParams(&newIntrRate);
     
     if (!alxStart(newIntrRate)) {
         goto error2;
@@ -1105,6 +1085,10 @@ IOReturn AtherosE2200::selectMedium(const IONetworkMedium *medium)
                 hw.adv_cfg = (ADVERTISED_100baseT_Full);
                 break;
                 
+            case MEDIUM_INDEX_100FDFC:
+                hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_100baseT_Full);
+                break;
+
             case MEDIUM_INDEX_1000FD:
                 hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_1000baseT_Full);
                 hw.flowctrl = ALX_FC_ANEG;
@@ -1130,7 +1114,7 @@ done:
 bool AtherosE2200::setupMediumDict()
 {
 	IONetworkMedium *medium;
-    UInt32 count = gbCapable ? MEDIUM_INDEX_COUNT : (MEDIUM_INDEX_COUNT - 1);
+    UInt32 count = gbCapable ? MEDIUM_INDEX_COUNT : (MEDIUM_INDEX_COUNT - 2);
     UInt32 i;
     bool result = false;
     
@@ -1405,6 +1389,35 @@ void AtherosE2200::txClearDescriptors()
     DebugLog("txClearDescriptors() <===\n");
 }
 
+void AtherosE2200::getParams(UInt32 *intrLimit)
+{
+    OSNumber *intrRate;
+    OSBoolean *tso4;
+    OSBoolean *tso6;
+    OSBoolean *csoV6;
+    
+    tso4 = OSDynamicCast(OSBoolean, getProperty(kEnableTSO4Name));
+    enableTSO4 = (tso4) ? tso4->getValue() : false;
+    
+    IOLog("Ethernet [AtherosE2200]: TCP/IPv4 segmentation offload %s.\n", enableTSO4 ? onName : offName);
+    
+    tso6 = OSDynamicCast(OSBoolean, getProperty(kEnableTSO6Name));
+    enableTSO6 = (tso6) ? tso6->getValue() : false;
+    
+    IOLog("Ethernet [AtherosE2200]: TCP/IPv6 segmentation offload %s.\n", enableTSO6 ? onName : offName);
+    
+    csoV6 = OSDynamicCast(OSBoolean, getProperty(kEnableCSO6Name));
+    enableCSO6 = (csoV6) ? csoV6->getValue() : false;
+    
+    IOLog("Ethernet [AtherosE2200]: TCP/IPv6 checksum offload %s.\n", enableCSO6 ? onName : offName);
+    
+    intrRate = OSDynamicCast(OSNumber, getProperty(kIntrRateName));
+    *intrLimit = 5000;
+    
+    if (intrRate)
+        *intrLimit = intrRate->unsigned32BitValue();
+}
+
 #pragma mark --- common interrupt methods ---
 
 void AtherosE2200::txInterrupt()
@@ -1587,11 +1600,13 @@ void AtherosE2200::interruptOccurred(OSObject *client, IOInterruptEventSource *s
 	}
 	if (status & ALX_ISR_ALERT)
         IOLog("Ethernet [AtherosE2200]: Alert interrupt. ISR=0x%x\n", status);
-    
-	if (status & (ALX_ISR_TX_Q0 | ALX_ISR_RX_Q0)) {
+
+	if (status & ALX_ISR_TX_Q0)
         txInterrupt();
+    
+    if (status & ALX_ISR_RX_Q0)
         rxInterrupt();
-    }
+
 	if (status & ALX_ISR_PHY)
         checkLinkStatus();
 	   
@@ -1630,7 +1645,7 @@ bool AtherosE2200::checkForDeadlock()
     return deadlock;
 }
 
-#pragma mark --- hardware specific methods ---
+#pragma mark --- link status change methods ---
 
 /* AtherosE2200::setLinkUp()
  *
@@ -1662,8 +1677,12 @@ void AtherosE2200::setLinkUp()
         speedName = speed100MName;
         
         if (hw.duplex == DUPLEX_FULL) {
-            mediumIndex = MEDIUM_INDEX_100FD;
             duplexName = duplexFullName;
+
+            if (flowControl)
+                mediumIndex = MEDIUM_INDEX_100FDFC;
+            else
+                mediumIndex = MEDIUM_INDEX_100FD;
         } else {
             mediumIndex = MEDIUM_INDEX_100HD;
             duplexName = duplexHalfName;
@@ -1760,73 +1779,6 @@ void AtherosE2200::setLinkDown()
     alx_post_phy_link(&hw);
     
     IOLog("Ethernet [AtherosE2200]: Link down on en%u\n", netif->getUnitNumber());
-}
-
-int AtherosE2200::alxReadPhyLink()
-{
-    int error = 0;
-	UInt16 bmsr, giga, lpa;
-    
-	error = alx_read_phy_reg(&hw, MII_BMSR, &bmsr);
-    
-	if (error)
-		goto done;
-    
-	error = alx_read_phy_reg(&hw, MII_BMSR, &bmsr);
-    
-	if (error)
-		goto done;
-    
-	if (!(bmsr & BMSR_LSTATUS)) {
-		hw.link_speed = SPEED_UNKNOWN;
-		hw.duplex = DUPLEX_UNKNOWN;
-		goto done;
-	}
-	/* speed/duplex result is saved in PHY Specific Status Register */
-	error = alx_read_phy_reg(&hw, ALX_MII_GIGA_PSSR, &giga);
-    
-	if (error)
-		goto done;
-    
-	if (!(giga & ALX_GIGA_PSSR_SPD_DPLX_RESOLVED))
-		goto wrong_speed;
-    
-	switch (giga & ALX_GIGA_PSSR_SPEED) {
-        case ALX_GIGA_PSSR_1000MBS:
-            hw.link_speed = SPEED_1000;
-            break;
-            
-        case ALX_GIGA_PSSR_100MBS:
-            hw.link_speed = SPEED_100;
-            break;
-            
-        case ALX_GIGA_PSSR_10MBS:
-            hw.link_speed = SPEED_10;
-            break;
-            
-        default:
-            goto wrong_speed;
-	}
-	hw.duplex = (giga & ALX_GIGA_PSSR_DPLX) ? DUPLEX_FULL : DUPLEX_HALF;
-    
-    /* Get the flow control settings. */
-    flowControl = 0;
-
-    error = alx_read_phy_reg(&hw, MII_LPA, &lpa);
-    
-    if (error)
-        goto done;
-    
-    if (lpa & LPA_PAUSE_CAP)
-        flowControl = (ALX_FC_RX | ALX_FC_TX) & hw.flowctrl;
-    
-done:
-	return error;
-    
-wrong_speed:
-    IOLog("Ethernet [AtherosE2200]: Invalid PHY speed/duplex: 0x%x\n", giga);
-	error = -EINVAL;
-    goto done;
 }
 
 #pragma mark --- hardware initialization methods ---
@@ -2523,6 +2475,75 @@ inline void AtherosE2200::alxGetChkSumCommand(UInt32 *cmd, mbuf_csum_request_fla
         *cmd = (TPD_TCP_XSUM | kMinL4HdrOffsetV6);
     else if (checksums & kChecksumUDPIPv6)
         *cmd = (TPD_UDP_XSUM | kMinL4HdrOffsetV6);
+}
+
+#pragma mark --- phy access methods ---
+
+int AtherosE2200::alxReadPhyLink()
+{
+    int error = 0;
+	UInt16 bmsr, giga, lpa;
+    
+	error = alx_read_phy_reg(&hw, MII_BMSR, &bmsr);
+    
+	if (error)
+		goto done;
+    
+	error = alx_read_phy_reg(&hw, MII_BMSR, &bmsr);
+    
+	if (error)
+		goto done;
+    
+	if (!(bmsr & BMSR_LSTATUS)) {
+		hw.link_speed = SPEED_UNKNOWN;
+		hw.duplex = DUPLEX_UNKNOWN;
+		goto done;
+	}
+	/* speed/duplex result is saved in PHY Specific Status Register */
+	error = alx_read_phy_reg(&hw, ALX_MII_GIGA_PSSR, &giga);
+    
+	if (error)
+		goto done;
+    
+	if (!(giga & ALX_GIGA_PSSR_SPD_DPLX_RESOLVED))
+		goto wrong_speed;
+    
+	switch (giga & ALX_GIGA_PSSR_SPEED) {
+        case ALX_GIGA_PSSR_1000MBS:
+            hw.link_speed = SPEED_1000;
+            break;
+            
+        case ALX_GIGA_PSSR_100MBS:
+            hw.link_speed = SPEED_100;
+            break;
+            
+        case ALX_GIGA_PSSR_10MBS:
+            hw.link_speed = SPEED_10;
+            break;
+            
+        default:
+            goto wrong_speed;
+	}
+	hw.duplex = (giga & ALX_GIGA_PSSR_DPLX) ? DUPLEX_FULL : DUPLEX_HALF;
+    
+    /* Get the flow control settings. */
+    flowControl = 0;
+    
+    error = alx_read_phy_reg(&hw, MII_LPA, &lpa);
+    
+    if (error)
+        goto done;
+    
+    if (lpa & LPA_PAUSE_CAP)
+        flowControl = (ALX_FC_RX | ALX_FC_TX) & hw.flowctrl;
+    
+done:
+	return error;
+    
+wrong_speed:
+    IOLog("Ethernet [AtherosE2200]: Invalid PHY speed/duplex: 0x%x\n", giga);
+	error = -EINVAL;
+    goto done;
 }
 
 #pragma mark --- timer action methods ---

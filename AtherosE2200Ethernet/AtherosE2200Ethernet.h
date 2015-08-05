@@ -46,6 +46,7 @@ enum
 	MEDIUM_INDEX_10FD,
 	MEDIUM_INDEX_100HD,
 	MEDIUM_INDEX_100FD,
+	MEDIUM_INDEX_100FDFC,
 	MEDIUM_INDEX_1000FD,
 	MEDIUM_INDEX_1000FDFC,
 	MEDIUM_INDEX_COUNT
@@ -272,6 +273,7 @@ private:
     bool alxResetPCIe();
     static IOReturn setPowerStateWakeAction(OSObject *owner, void *arg1, void *arg2, void *arg3, void *arg4);
     static IOReturn setPowerStateSleepAction(OSObject *owner, void *arg1, void *arg2, void *arg3, void *arg4);
+    void getParams(UInt32 *intrLimit);
     bool setupMediumDict();
     bool initEventSources(IOService *provider);
     void interruptOccurred(OSObject *client, IOInterruptEventSource *src, int count);
