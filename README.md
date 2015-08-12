@@ -10,8 +10,7 @@ Key Features of the Driver
   - TCP, UDP and IPv4 checksum offload (receive and transmit).
   - Support for TCP/IPv6 and UDP/IPv6 checksum offload.
   - Makes use of the chip's TCP Segmentation Offload (TSO) feature with IPv4 and IPv6 in order to reduce CPU load while sending large amounts of data.
-  - Fully optimized for Mountain Lion and Mavericks (64bit architecture) but should work with Lion too, provided you build from source with the 10.7 SDK.
-  - Support for Energy Efficient Ethernet (EEE).
+  - Fully optimized for Mountain Lion, Mavericks and Yosemite (64bit architecture) but version 1.x.x should work with Lion too, provided you build from source with the 10.7 SDK.
   - Wake on LAN support.
   - VLAN support is implemented but untested as I have no need for it.
   - The driver is published under GPLv2.
@@ -44,6 +43,8 @@ Troubleshooting
   - Keep in mind that there are many manufacturers of network equipment. Although Ethernet is an IEEE standard, different implementations may show different behavior causing incompatibilities. In case you are having trouble try a different switch or a different cable.
 
 Changelog
+  - Version 2.0.1 (2015-08-12)
+    - Improved flow control support in 100MBit mode.
   - Version 2.0.0 (2015-04-21)
     - Uses Apple's private driver interface introduced with 10.8.
     - Supports packet scheduling with QFQ.
