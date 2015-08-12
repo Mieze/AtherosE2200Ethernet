@@ -1838,7 +1838,7 @@ bool AtherosE2200::initPCIConfigSpace(IOPCIDevice *provider)
     cmdReg	|= kALXPCICommand;
 	provider->configWrite16(kIOPCIConfigCommand, cmdReg);
     
-    baseMap = provider->mapDeviceMemoryWithRegister(kIOPCIConfigBaseAddress0);
+    baseMap = provider->mapDeviceMemoryWithRegister(kIOPCIConfigBaseAddress0, kIOMapInhibitCache);
     
     if (!baseMap) {
         IOLog("Ethernet [AtherosE2200]: region #0 not an MMIO resource, aborting.\n");
