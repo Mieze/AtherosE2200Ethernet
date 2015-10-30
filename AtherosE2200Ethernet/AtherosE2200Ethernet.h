@@ -159,7 +159,7 @@ typedef struct QCARxTxDescArray {
 #define kTimeoutMS 1000
 
 /* Treshhold value to wake a stalled queue */
-#define kTxQueueWakeTreshhold (kNumTxDesc / 8)
+#define kTxQueueWakeTreshhold (kNumTxDesc / 4)
 
 /* transmitter deadlock treshhold in seconds. */
 #define kTxDeadlockTreshhold 5

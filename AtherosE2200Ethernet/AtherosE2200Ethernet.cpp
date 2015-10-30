@@ -1600,7 +1600,12 @@ void AtherosE2200::interruptOccurred(OSObject *client, IOInterruptEventSource *s
 	}
 	if (status & ALX_ISR_ALERT)
         IOLog("Ethernet [AtherosE2200]: Alert interrupt. ISR=0x%x\n", status);
-
+/*
+	if (status & (ALX_ISR_TX_Q0 | ALX_ISR_RX_Q0)) {
+        txInterrupt();
+        rxInterrupt();
+    }
+*/
 	if (status & ALX_ISR_TX_Q0)
         txInterrupt();
     
