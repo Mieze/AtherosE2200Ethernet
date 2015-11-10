@@ -37,6 +37,7 @@ static const char *chipNames[] = {
     "AR8171",
     "AR8172",
     "Killer E2200",
+    "Killer E2400",
 };
 
 static const char *onName = "enabled";
@@ -1530,7 +1531,7 @@ void AtherosE2200::rxInterrupt()
             case RRD_PID_IPV4UDP:
                 validMask = (status3 & (RRD_ERR_L4 | RRD_ERR_IPV4)) ? 0 : (kChecksumUDP | kChecksumIP);
                 break;
-                
+
             default:
                 validMask = 0;
         }
@@ -2444,6 +2445,12 @@ bool AtherosE2200::alxIdentifyChip()
             chip = kChipKillerE2200;
             gbCapable = true;
             DebugLog("Ethernet [AtherosE2200]: Found Killer E2200.\n");
+            break;
+            
+        case ALX_DEV_ID_E2400:
+            chip = kChipKillerE2400;
+            gbCapable = true;
+            DebugLog("Ethernet [AtherosE2400]: Found Killer E2400.\n");
             break;
             
         default:
