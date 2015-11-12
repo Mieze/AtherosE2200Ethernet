@@ -2450,7 +2450,7 @@ bool AtherosE2200::alxIdentifyChip()
         case ALX_DEV_ID_E2400:
             chip = kChipKillerE2400;
             gbCapable = true;
-            DebugLog("Ethernet [AtherosE2400]: Found Killer E2400.\n");
+            DebugLog("Ethernet [AtherosE2200]: Found Killer E2400.\n");
             break;
             
         default:
