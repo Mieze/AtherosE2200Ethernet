@@ -67,6 +67,7 @@ enum {
     kChipAR8171,
     kChipAR8172,
     kChipKillerE2200,
+    kChipKillerE2400,
     kNumChips
 };
 
