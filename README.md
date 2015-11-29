@@ -4,7 +4,7 @@ AtherosE2200Ethernet
 Qualcomm Atheros Killer E2200 driver for OS X
 
 Key Features of the Driver
-  - Supports Qualcomm Atheros AR816x, AR817x and Killer E220x.
+  - Supports Qualcomm Atheros AR816x, AR817x, Killer E220x and Killer E2400.
   - Support for multisegment packets relieving the network stack of unnecessary copy operations when assembling packets for transmission.
   - No-copy receive and transmit. Only small packets are copied on reception because creating a copy is more efficient than allocating a new buffer.
   - TCP, UDP and IPv4 checksum offload (receive and transmit).
@@ -13,6 +13,7 @@ Key Features of the Driver
   - Fully optimized for Mountain Lion, Mavericks and Yosemite (64bit architecture) but version 1.x.x should work with Lion too, provided you build from source with the 10.7 SDK.
   - Wake on LAN support.
   - VLAN support is implemented but untested as I have no need for it.
+  - Supports Energy Efficient Ethernet (EEE).
   - The driver is published under GPLv2.
 
 Known Issues
