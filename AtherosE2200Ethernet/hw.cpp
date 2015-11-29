@@ -217,7 +217,7 @@ int alx_write_phy_ext(struct alx_hw *hw, u8 dev, u16 reg, u16 data)
 	return err;
 }
 
-static int alx_read_phy_dbg(struct alx_hw *hw, u16 reg, u16 *pdata)
+int alx_read_phy_dbg(struct alx_hw *hw, u16 reg, u16 *pdata)
 {
 	int err;
 
@@ -228,7 +228,7 @@ static int alx_read_phy_dbg(struct alx_hw *hw, u16 reg, u16 *pdata)
 	return err;
 }
 
-static int alx_write_phy_dbg(struct alx_hw *hw, u16 reg, u16 data)
+int alx_write_phy_dbg(struct alx_hw *hw, u16 reg, u16 data)
 {
 	int err;
 
@@ -496,6 +496,8 @@ int alx_reset_mac(struct alx_hw *hw)
 	return 0;
 }
 
+#if DISABLED_CODE
+
 void alx_reset_phy(struct alx_hw *hw)
 {
 	int i;
@@ -563,8 +565,6 @@ void alx_reset_phy(struct alx_hw *hw)
 	/* set phy interrupt mask */
 	alx_write_phy_reg(hw, ALX_MII_IER, ALX_IER_LINK_UP | ALX_IER_LINK_DOWN);
 }
-
-#if DISABLED_CODE
 
 #define ALX_PCI_CMD (PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY | PCI_COMMAND_IO)
 
@@ -690,7 +690,7 @@ void alx_enable_aspm(struct alx_hw *hw, bool l0s_en, bool l1_en)
 }
 
 
-static u32 ethadv_to_hw_cfg(struct alx_hw *hw, u32 ethadv_cfg)
+u32 ethadv_to_hw_cfg(struct alx_hw *hw, u32 ethadv_cfg)
 {
 	u32 cfg = 0;
 
@@ -731,6 +731,8 @@ static u32 ethadv_to_hw_cfg(struct alx_hw *hw, u32 ethadv_cfg)
 
 	return cfg;
 }
+
+#if DISABLED_CODE
 
 int alx_setup_speed_duplex(struct alx_hw *hw, u32 ethadv, u8 flowctrl)
 {
@@ -786,7 +788,6 @@ int alx_setup_speed_duplex(struct alx_hw *hw, u32 ethadv, u8 flowctrl)
 
 	return err;
 }
-
 
 void alx_post_phy_link(struct alx_hw *hw)
 {
@@ -860,6 +861,8 @@ void alx_post_phy_link(struct alx_hw *hw)
 		}
 	}
 }
+
+#endif /* DISABLED_CODE */
 
 bool alx_phy_configured(struct alx_hw *hw)
 {
@@ -1157,6 +1160,8 @@ int alx_config_wol(struct alx_hw *hw)
     return err;
 }
 
+#if DISABLED_CODE
+
 int alx_select_powersaving_speed(struct alx_hw *hw, int *speed, u8 *duplex)
 {
     int i, err;
@@ -1221,6 +1226,8 @@ int alx_select_powersaving_speed(struct alx_hw *hw, int *speed, u8 *duplex)
 
     return 0;
 }
+
+#endif /* DISABLED_CODE */
 
 void alx_update_hw_stats(struct alx_hw *hw)
 {

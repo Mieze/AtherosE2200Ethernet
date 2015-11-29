@@ -582,11 +582,8 @@ static inline void alx_post_write(struct alx_hw *hw)
 #endif /* DISABLED_CODE */
 
 int alx_get_perm_macaddr(struct alx_hw *hw, u8 *addr);
-void alx_reset_phy(struct alx_hw *hw);
 void alx_reset_pcie(struct alx_hw *hw);
 void alx_enable_aspm(struct alx_hw *hw, bool l0s_en, bool l1_en);
-int alx_setup_speed_duplex(struct alx_hw *hw, u32 ethadv, u8 flowctrl);
-void alx_post_phy_link(struct alx_hw *hw);
 int alx_read_phy_reg(struct alx_hw *hw, u16 reg, u16 *phy_data);
 int alx_write_phy_reg(struct alx_hw *hw, u16 reg, u16 phy_data);
 int alx_read_phy_ext(struct alx_hw *hw, u8 dev, u16 reg, u16 *pdata);
@@ -604,9 +601,12 @@ bool alx_get_phy_info(struct alx_hw *hw);
 void alx_update_hw_stats(struct alx_hw *hw);
 
 bool alx_wait_reg(struct alx_hw *hw, u32 reg, u32 wait, u32 *val);
-int alx_select_powersaving_speed(struct alx_hw *hw, int *speed, u8 *duplex);
 int alx_pre_suspend(struct alx_hw *hw, int speed, u8 duplex);
 int alx_config_wol(struct alx_hw *hw);
+
+int alx_write_phy_dbg(struct alx_hw *hw, u16 reg, u16 data);
+int alx_read_phy_dbg(struct alx_hw *hw, u16 reg, u16 *pdata);
+u32 ethadv_to_hw_cfg(struct alx_hw *hw, u32 ethadv_cfg);
 
 static inline u32 alx_speed_to_ethadv(int speed, u8 duplex)
 {

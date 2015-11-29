@@ -37,6 +37,7 @@
 
 #define ALX_DEV_ID_AR8161				0x1091
 #define ALX_DEV_ID_E2200				0xe091
+#define ALX_DEV_ID_E2400                0xe0A1
 #define ALX_DEV_ID_AR8162				0x1090
 #define ALX_DEV_ID_AR8171				0x10A1
 #define ALX_DEV_ID_AR8172				0x10A0
@@ -598,10 +599,14 @@
 /* bit23: adv Pause */
 #define ALX_DRV_PHY_PAUSE				BIT(23)
 /* bit22: adv Asym Pause */
+#define ALX_DRV_PHY_APAUSE              BIT(22)
+/* bit21: 1:en AZ */
+#define ALX_DRV_PHY_EEE                 BIT(21)
 #define ALX_DRV_PHY_MASK				0xFF
 #define ALX_DRV_PHY_SHIFT				21
 #define ALX_DRV_PHY_UNKNOWN				0
 #define ALX_DRV_DISABLE                 BIT(18)
+#define ALX_DRV_AZ_EN                   BIT(12)
 
 /* flag of phy inited */
 #define ALX_PHY_INITED					0x003F
@@ -959,8 +964,8 @@
 #define ALX_REMOTE_EEEADV_100BT             0x0002
 
 #define ALX_MIIEXT_EEE_ANEG                 0x8000
-#define ALX_EEE_ANEG_1000M                  0x0004
-#define ALX_EEE_ANEG_100M                   0x0002
+#define ALX_EEE_ANEG_1000M                  ALX_LOCAL_EEEADV_1000BT
+#define ALX_EEE_ANEG_100M                   ALX_LOCAL_EEEADV_100BT
 
 #define ALX_MIIEXT_AFE					0x801A
 #define ALX_AFE_10BT_100M_TH				0x0040

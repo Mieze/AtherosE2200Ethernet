@@ -37,6 +37,7 @@ static const char *chipNames[] = {
     "AR8171",
     "AR8172",
     "Killer E2200",
+    "Killer E2400",
 };
 
 static const char *onName = "enabled";
@@ -56,8 +57,13 @@ static IOMediumType mediumTypeArray[MEDIUM_INDEX_COUNT] = {
     (kIOMediumEthernet100BaseTX | kIOMediumOptionHalfDuplex),
     (kIOMediumEthernet100BaseTX | kIOMediumOptionFullDuplex),
     (kIOMediumEthernet100BaseTX | kIOMediumOptionFullDuplex | kIOMediumOptionFlowControl),
+    (kIOMediumEthernet100BaseTX | kIOMediumOptionFullDuplex | kIOMediumOptionEEE),
+    (kIOMediumEthernet100BaseTX | kIOMediumOptionFullDuplex | kIOMediumOptionFlowControl | kIOMediumOptionEEE),
     (kIOMediumEthernet1000BaseT | kIOMediumOptionFullDuplex),
-    (kIOMediumEthernet1000BaseT | kIOMediumOptionFullDuplex | kIOMediumOptionFlowControl)
+    (kIOMediumEthernet1000BaseT | kIOMediumOptionFullDuplex | kIOMediumOptionFlowControl),
+    (kIOMediumEthernet1000BaseT | kIOMediumOptionFullDuplex | kIOMediumOptionEEE),
+    (kIOMediumEthernet1000BaseT | kIOMediumOptionFullDuplex | kIOMediumOptionFlowControl | kIOMediumOptionEEE),
+
 };
 
 static UInt32 mediumSpeedArray[MEDIUM_INDEX_COUNT] = {
@@ -67,6 +73,10 @@ static UInt32 mediumSpeedArray[MEDIUM_INDEX_COUNT] = {
     100 * MBit,
     100 * MBit,
     100 * MBit,
+    100 * MBit,
+    100 * MBit,
+    1000 * MBit,
+    1000 * MBit,
     1000 * MBit,
     1000 * MBit
 };
@@ -80,6 +90,11 @@ static const char *duplexHalfName = "Half-duplex";
 static const char *flowControlNames[] = {
     "No flow-control",
     "Rx/Tx flow-control",
+};
+
+static const char* eeeNames[kEEETypeCount] = {
+    "",
+    ", energy efficient ethernet"
 };
 
 static unsigned const ethernet_polynomial = 0x04c11db7U;
@@ -134,6 +149,7 @@ bool AtherosE2200::init(OSDictionary *properties)
         
         useMSI = false;
         chip = kChipUnkown;
+        eeeCap = 0;
         powerState = 0;
         pciDeviceData.vendor = 0;
         pciDeviceData.device = 0;
@@ -237,9 +253,9 @@ bool AtherosE2200::start(IOService *provider)
     newIntrRate = 500000 / hw.imt;
     
     if (versionString)
-        IOLog("Ethernet [AtherosE2200]: Version %s using max interrupt rate %u.\n", versionString->getCStringNoCopy(), newIntrRate);
+        IOLog("Ethernet [AtherosE2200]: Version %s using max interrupt rate %u. Please don't support tonymacx86.com!\n", versionString->getCStringNoCopy(), newIntrRate);
     else
-        IOLog("Ethernet [AtherosE2200]: Using max interrupt rate %u.\n", newIntrRate);
+        IOLog("Ethernet [AtherosE2200]: Using max interrupt rate %u. Please don't support tonymacx86.com!\n", newIntrRate);
 
     if (!setupMediumDict()) {
         IOLog("Ethernet [AtherosE2200]: Failed to setup medium dictionary.\n");
@@ -1060,10 +1076,12 @@ IOReturn AtherosE2200::selectMedium(const IONetworkMedium *medium)
     
     if (medium) {
         hw.flowctrl = (ALX_FC_ANEG | ALX_FC_RX | ALX_FC_TX);
-
+        eeeAdv = 0;
+        
         switch (medium->getIndex()) {
             case MEDIUM_INDEX_AUTO:
                 hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_10baseT_Half | ADVERTISED_10baseT_Full | ADVERTISED_100baseT_Full | ADVERTISED_100baseT_Half);
+                eeeAdv = eeeCap;
                 
                 if (gbCapable)
                     hw.adv_cfg |= ADVERTISED_1000baseT_Full;
@@ -1089,6 +1107,17 @@ IOReturn AtherosE2200::selectMedium(const IONetworkMedium *medium)
                 hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_100baseT_Full);
                 break;
 
+            case MEDIUM_INDEX_100FDEEE:
+                hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_100baseT_Full);
+                hw.flowctrl = ALX_FC_ANEG;
+                eeeAdv = eeeCap;
+                break;
+                
+            case MEDIUM_INDEX_100FDFCEEE:
+                hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_100baseT_Full);
+                eeeAdv = eeeCap;
+                break;
+                
             case MEDIUM_INDEX_1000FD:
                 hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_1000baseT_Full);
                 hw.flowctrl = ALX_FC_ANEG;
@@ -1097,9 +1126,20 @@ IOReturn AtherosE2200::selectMedium(const IONetworkMedium *medium)
             case MEDIUM_INDEX_1000FDFC:
                 hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_1000baseT_Full);
                 break;
+                
+            case MEDIUM_INDEX_1000FDEEE:
+                hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_1000baseT_Full);
+                hw.flowctrl = ALX_FC_ANEG;
+                eeeAdv = eeeCap;
+                break;
+                
+            case MEDIUM_INDEX_1000FDFCEEE:
+                hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_1000baseT_Full);
+                eeeAdv = eeeCap;
+                break;
         }
         setLinkDown();
-        alx_setup_speed_duplex(&hw, hw.adv_cfg, hw.flowctrl);
+        alxSetupSpeedDuplex(hw.adv_cfg, eeeAdv, hw.flowctrl);
         setCurrentMedium(medium);
     }
     
@@ -1666,17 +1706,34 @@ void AtherosE2200::setLinkUp()
     const char *flowName;
     const char *speedName;
     const char *duplexName;
-    
+    const char *eeeName;
+
+    eeeEnable = 0;
+    eeeName = eeeNames[kEEETypeNo];
+
     /* Get link speed, duplex and flow-control mode. */
     if (hw.link_speed == SPEED_1000) {
         mediumSpeed = kSpeed1000MBit;
         speedName = speed1GName;
         duplexName = duplexFullName;
         
-        if (flowControl)
-            mediumIndex = MEDIUM_INDEX_1000FDFC;
-        else
-            mediumIndex = MEDIUM_INDEX_1000FD;
+        eeeEnable = eeeAdv & eeeLpa;
+
+        if (flowControl) {
+            if (eeeEnable) {
+                mediumIndex = MEDIUM_INDEX_1000FDFCEEE;
+                eeeName = eeeNames[kEEETypeYes];
+            } else {
+                mediumIndex = MEDIUM_INDEX_1000FDFC;
+            }
+        } else {
+            if (eeeEnable) {
+                mediumIndex = MEDIUM_INDEX_1000FDEEE;
+                eeeName = eeeNames[kEEETypeYes];
+            } else {
+                mediumIndex = MEDIUM_INDEX_1000FD;
+            }
+        }
     } else if (hw.link_speed == SPEED_100) {
         mediumSpeed = kSpeed100MBit;
         speedName = speed100MName;
@@ -1684,10 +1741,23 @@ void AtherosE2200::setLinkUp()
         if (hw.duplex == DUPLEX_FULL) {
             duplexName = duplexFullName;
 
-            if (flowControl)
-                mediumIndex = MEDIUM_INDEX_100FDFC;
-            else
-                mediumIndex = MEDIUM_INDEX_100FD;
+            eeeEnable = eeeAdv & eeeLpa;
+            
+            if (flowControl) {
+                if (eeeEnable) {
+                    mediumIndex = MEDIUM_INDEX_100FDFCEEE;
+                    eeeName = eeeNames[kEEETypeYes];
+                } else {
+                    mediumIndex = MEDIUM_INDEX_100FDFC;
+                }
+            } else {
+                if (eeeEnable) {
+                    mediumIndex = MEDIUM_INDEX_100FDEEE;
+                    eeeName = eeeNames[kEEETypeYes];
+                } else {
+                    mediumIndex = MEDIUM_INDEX_100FD;
+                }
+            }
         } else {
             mediumIndex = MEDIUM_INDEX_100HD;
             duplexName = duplexHalfName;
@@ -1712,7 +1782,7 @@ void AtherosE2200::setLinkUp()
     intrMask = (ALX_ISR_MISC | ALX_ISR_PHY | ALX_ISR_RX_Q0 | ALX_ISR_TX_Q0);
     alxWriteMem32(ALX_IMR, intrMask);
     
-    alx_post_phy_link(&hw);
+    alxPostPhyLink();
     alx_enable_aspm(&hw, true, true);
 
     /* Adjust MAC's speed, duplex and flow control settings. */
@@ -1738,7 +1808,7 @@ void AtherosE2200::setLinkUp()
 
     timerSource->setTimeoutMS(kTimeoutMS);
 
-    IOLog("Ethernet [AtherosE2200]: Link up on en%u, %s, %s, %s\n", netif->getUnitNumber(), speedName, duplexName, flowName);
+    IOLog("Ethernet [AtherosE2200]: Link up on en%u, %s, %s, %s%s\n", netif->getUnitNumber(), speedName, duplexName, flowName, eeeName);
 }
 
 /* AtherosE2200::setLinkDown()
@@ -1781,7 +1851,7 @@ void AtherosE2200::setLinkDown()
     /* MAC reset causes all HW settings to be lost, restore all */
     alxConfigure();
     alx_enable_aspm(&hw, false, true);
-    alx_post_phy_link(&hw);
+    alxPostPhyLink();
     
     IOLog("Ethernet [AtherosE2200]: Link down on en%u\n", netif->getUnitNumber());
 }
@@ -2054,13 +2124,15 @@ bool AtherosE2200::alxStart(UInt32 maxIntrRate)
     
 	hw.rx_ctrl = (ALX_MAC_CTRL_WOLSPED_SWEN | ALX_MAC_CTRL_BRD_EN | ALX_MAC_CTRL_VLANSTRIP | ALX_MAC_CTRL_MHASH_ALG_HI5B | ALX_MAC_CTRL_PCRCE | ALX_MAC_CTRL_CRCE | ALX_MAC_CTRL_RXFC_EN | ALX_MAC_CTRL_TXFC_EN | (7 << ALX_MAC_CTRL_PRMBLEN_SHIFT));
     
+    eeeAdv = eeeCap;
+    
     if (!alxResetPCIe())
         goto done;
     
 	phyConfigured = alx_phy_configured(&hw);
     
 	if (!phyConfigured)
-		alx_reset_phy(&hw);
+		alxResetPhy();
     
 	if (alx_reset_mac(&hw)) {
         IOLog("Ethernet [AtherosE2200]: Failed to reset MAC.\n");
@@ -2068,7 +2140,7 @@ bool AtherosE2200::alxStart(UInt32 maxIntrRate)
     }
 	/* setup link to put it in a known good starting state */
 	if (!phyConfigured) {
-        error = alx_setup_speed_duplex(&hw, hw.adv_cfg, hw.flowctrl);
+        error = alxSetupSpeedDuplex(hw.adv_cfg, eeeAdv, hw.flowctrl);
         
 		if (error) {
             IOLog("Ethernet [AtherosE2200]: Failed to configure PHY speed/duplex: %d.\n", error);
@@ -2106,7 +2178,7 @@ void AtherosE2200::alxEnable()
     UInt32 msiControl = ((hw.imt >> 1) << ALX_MSI_RETRANS_TM_SHIFT);
     
     alxResetPCIe();
-    alx_reset_phy(&hw);
+    alxResetPhy();
     alx_reset_mac(&hw);
 	alxConfigure();
     
@@ -2145,7 +2217,7 @@ int AtherosE2200::alxDisable()
 	alx_enable_aspm(&hw, false, false);
     
     if (hw.sleep_ctrl & ALX_SLEEP_ACTIVE) {
-        error = alx_select_powersaving_speed(&hw, &speed, &duplex);
+        error = alxSelectPowersavingSpeed(&speed, &duplex);
         
         if (error) {
             DebugLog("Ethernet [AtherosE2200]: alx_select_powersaving_speed() failed.\n");
@@ -2424,31 +2496,43 @@ bool AtherosE2200::alxIdentifyChip()
         case ALX_DEV_ID_AR8162:
             chip = kChipAR8162;
             gbCapable = false;
+            eeeCap = ALX_LOCAL_EEEADV_100BT;
             DebugLog("Ethernet [AtherosE2200]: Found AR8162.\n");
             break;
             
         case ALX_DEV_ID_AR8161:
             chip = kChipAR8161;
             gbCapable = true;
+            eeeCap = (ALX_LOCAL_EEEADV_100BT | ALX_LOCAL_EEEADV_1000BT);
             DebugLog("Ethernet [AtherosE2200]: Found AR8161.\n");
             break;
             
         case ALX_DEV_ID_AR8172:
             chip = kChipAR8172;
             gbCapable = false;
+            eeeCap = ALX_LOCAL_EEEADV_100BT;
             DebugLog("Ethernet [AtherosE2200]: Found AR8172.\n");
             break;
             
         case ALX_DEV_ID_AR8171:
             chip = kChipAR8171;
             gbCapable = true;
+            eeeCap = (ALX_LOCAL_EEEADV_100BT | ALX_LOCAL_EEEADV_1000BT);
             DebugLog("Ethernet [AtherosE2200]: Found AR8171.\n");
             break;
             
         case ALX_DEV_ID_E2200:
             chip = kChipKillerE2200;
             gbCapable = true;
+            eeeCap = (ALX_LOCAL_EEEADV_100BT | ALX_LOCAL_EEEADV_1000BT);
             DebugLog("Ethernet [AtherosE2200]: Found Killer E2200.\n");
+            break;
+            
+        case ALX_DEV_ID_E2400:
+            chip = kChipKillerE2400;
+            gbCapable = true;
+            eeeCap = (ALX_LOCAL_EEEADV_100BT | ALX_LOCAL_EEEADV_1000BT);
+            DebugLog("Ethernet [AtherosE2200]: Found Killer E2400.\n");
             break;
             
         default:
@@ -2542,6 +2626,15 @@ int AtherosE2200::alxReadPhyLink()
     if (lpa & LPA_PAUSE_CAP)
         flowControl = (ALX_FC_RX | ALX_FC_TX) & hw.flowctrl;
     
+    eeeLpa = 0;
+    
+    error = alx_read_phy_ext(&hw, ALX_MIIEXT_ANEG, ALX_MIIEXT_REMOTE_EEEADV, &eeeLpa);
+    
+    if (error)
+        goto done;
+    
+    DebugLog("Ethernet [AtherosE2200]: EEE link partner: 0x%04x.\n", eeeLpa);
+    
 done:
 	return error;
     
@@ -2551,10 +2644,288 @@ wrong_speed:
     goto done;
 }
 
+void AtherosE2200::alxResetPhy()
+{
+    int i;
+    UInt32 val;
+    UInt16 phy_val;
+    
+    /* (DSP)reset PHY core */
+    val = alxReadMem32(ALX_PHY_CTRL);
+    val &= ~(ALX_PHY_CTRL_DSPRST_OUT | ALX_PHY_CTRL_IDDQ |
+             ALX_PHY_CTRL_GATE_25M | ALX_PHY_CTRL_POWER_DOWN |
+             ALX_PHY_CTRL_CLS);
+    val |= ALX_PHY_CTRL_RST_ANALOG;
+    
+    val |= (ALX_PHY_CTRL_HIB_PULSE | ALX_PHY_CTRL_HIB_EN);
+    alxWriteMem32(ALX_PHY_CTRL, val);
+    udelay(10);
+    alxWriteMem32(ALX_PHY_CTRL, val | ALX_PHY_CTRL_DSPRST_OUT);
+    
+    for (i = 0; i < ALX_PHY_CTRL_DSPRST_TO; i++)
+        udelay(10);
+    
+    /* phy power saving & hib */
+    alx_write_phy_dbg(&hw, ALX_MIIDBG_LEGCYPS, ALX_LEGCYPS_DEF);
+    alx_write_phy_dbg(&hw, ALX_MIIDBG_SYSMODCTRL, ALX_SYSMODCTRL_IECHOADJ_DEF);
+    alx_write_phy_ext(&hw, ALX_MIIEXT_PCS, ALX_MIIEXT_VDRVBIAS, ALX_VDRVBIAS_DEF);
+    
+    /* EEE advertisement */
+    if (eeeAdv) {
+        alx_write_phy_ext(&hw, ALX_MIIEXT_ANEG, ALX_MIIEXT_LOCAL_EEEADV, eeeAdv);
+        
+        /* half amplify */
+        alx_write_phy_dbg(&hw, ALX_MIIDBG_AZ_ANADECT, ALX_AZ_ANADECT_DEF);
+        
+        alx_read_phy_ext(&hw, ALX_MIIEXT_ANEG, ALX_MIIEXT_EEE_ANEG, &phy_val);
+        alx_write_phy_ext(&hw, ALX_MIIEXT_ANEG, ALX_MIIEXT_EEE_ANEG, phy_val | eeeAdv);
+    } else {
+        val = alxReadMem32(ALX_LPI_CTRL);
+        alxWriteMem32(ALX_LPI_CTRL, val & ~ALX_LPI_CTRL_EN);
+        alx_write_phy_ext(&hw, ALX_MIIEXT_ANEG, ALX_MIIEXT_LOCAL_EEEADV, 0);
+    }
+    
+    /* phy power saving */
+    alx_write_phy_dbg(&hw, ALX_MIIDBG_TST10BTCFG, ALX_TST10BTCFG_DEF);
+    alx_write_phy_dbg(&hw, ALX_MIIDBG_SRDSYSMOD, ALX_SRDSYSMOD_DEF);
+    alx_write_phy_dbg(&hw, ALX_MIIDBG_TST100BTCFG, ALX_TST100BTCFG_DEF);
+    alx_write_phy_dbg(&hw, ALX_MIIDBG_ANACTRL, ALX_ANACTRL_DEF);
+    alx_read_phy_dbg(&hw, ALX_MIIDBG_GREENCFG2, &phy_val);
+    alx_write_phy_dbg(&hw, ALX_MIIDBG_GREENCFG2, phy_val & ~ALX_GREENCFG2_GATE_DFSE_EN);
+    
+    /* rtl8139c, 120m issue */
+    alx_write_phy_ext(&hw, ALX_MIIEXT_ANEG, ALX_MIIEXT_NLP78, ALX_MIIEXT_NLP78_120M_DEF);
+    alx_write_phy_ext(&hw, ALX_MIIEXT_ANEG, ALX_MIIEXT_S3DIG10, ALX_MIIEXT_S3DIG10_DEF);
+    
+    if (hw.lnk_patch) {
+        /* Turn off half amplitude */
+        alx_read_phy_ext(&hw, ALX_MIIEXT_PCS, ALX_MIIEXT_CLDCTRL3, &phy_val);
+        alx_write_phy_ext(&hw, ALX_MIIEXT_PCS, ALX_MIIEXT_CLDCTRL3, phy_val | ALX_CLDCTRL3_BP_CABLE1TH_DET_GT);
+        
+        /* Turn off Green feature */
+        alx_read_phy_dbg(&hw, ALX_MIIDBG_GREENCFG2, &phy_val);
+        alx_write_phy_dbg(&hw, ALX_MIIDBG_GREENCFG2, phy_val | ALX_GREENCFG2_BP_GREEN);
+        
+        /* Turn off half Bias */
+        alx_read_phy_ext(&hw, ALX_MIIEXT_PCS, ALX_MIIEXT_CLDCTRL5, &phy_val);
+        alx_write_phy_ext(&hw, ALX_MIIEXT_PCS, ALX_MIIEXT_CLDCTRL5, phy_val | ALX_CLDCTRL5_BP_VD_HLFBIAS);
+    }
+    
+    /* set phy interrupt mask */
+    alx_write_phy_reg(&hw, ALX_MII_IER, ALX_IER_LINK_UP | ALX_IER_LINK_DOWN);
+}
+
+void AtherosE2200::alxPostPhyLink()
+{
+    UInt16 phy_val, len, agc;
+    UInt8 revid = alx_hw_revision(&hw);
+    bool adj_th = revid == ALX_REV_B0;
+    
+    if (revid != ALX_REV_B0 && !alx_is_rev_a(revid))
+        return;
+    
+    /* 1000BT/AZ, wrong cable length */
+    if (hw.link_speed != SPEED_UNKNOWN) {
+        alx_read_phy_ext(&hw, ALX_MIIEXT_PCS, ALX_MIIEXT_CLDCTRL6, &phy_val);
+        len = ALX_GET_FIELD(phy_val, ALX_CLDCTRL6_CAB_LEN);
+        alx_read_phy_dbg(&hw, ALX_MIIDBG_AGC, &phy_val);
+        agc = ALX_GET_FIELD(phy_val, ALX_AGC_2_VGA);
+        
+        if ((hw.link_speed == SPEED_1000 && (len > ALX_CLDCTRL6_CAB_LEN_SHORT1G || (len == 0 && agc > ALX_AGC_LONG1G_LIMT))) ||
+            (hw.link_speed == SPEED_100 && (len > ALX_CLDCTRL6_CAB_LEN_SHORT100M || (len == 0 && agc > ALX_AGC_LONG100M_LIMT)))) {
+                 alx_write_phy_dbg(&hw, ALX_MIIDBG_AZ_ANADECT, ALX_AZ_ANADECT_LONG);
+                 alx_read_phy_ext(&hw, ALX_MIIEXT_ANEG, ALX_MIIEXT_AFE, &phy_val);
+                 alx_write_phy_ext(&hw, ALX_MIIEXT_ANEG, ALX_MIIEXT_AFE, phy_val | ALX_AFE_10BT_100M_TH);
+        } else {
+                 alx_write_phy_dbg(&hw, ALX_MIIDBG_AZ_ANADECT, ALX_AZ_ANADECT_DEF);
+                 alx_read_phy_ext(&hw, ALX_MIIEXT_ANEG, ALX_MIIEXT_AFE, &phy_val);
+                 alx_write_phy_ext(&hw, ALX_MIIEXT_ANEG, ALX_MIIEXT_AFE, phy_val & ~ALX_AFE_10BT_100M_TH);
+        }
+        /* threshold adjust */
+        if (adj_th && hw.lnk_patch) {
+            if (hw.link_speed == SPEED_100) {
+                alx_write_phy_dbg(&hw, ALX_MIIDBG_MSE16DB, ALX_MSE16DB_UP);
+            } else if (hw.link_speed == SPEED_1000) {
+                /*
+                 * Giga link threshold, raise the tolerance of
+                 * noise 50%
+                 */
+                alx_read_phy_dbg(&hw, ALX_MIIDBG_MSE20DB, &phy_val);
+                ALX_SET_FIELD(phy_val, ALX_MSE20DB_TH, ALX_MSE20DB_TH_HI);
+                alx_write_phy_dbg(&hw, ALX_MIIDBG_MSE20DB, phy_val);
+            }
+        }
+        /* phy link-down in 1000BT/AZ mode */
+        if (eeeCap && revid == ALX_REV_B0 && hw.link_speed == SPEED_1000) {
+            alx_write_phy_dbg(&hw, ALX_MIIDBG_SRDSYSMOD, ALX_SRDSYSMOD_DEF & ~ALX_SRDSYSMOD_DEEMP_EN);
+        }
+    } else {
+        alx_read_phy_ext(&hw, ALX_MIIEXT_ANEG, ALX_MIIEXT_AFE, &phy_val);
+        alx_write_phy_ext(&hw, ALX_MIIEXT_ANEG, ALX_MIIEXT_AFE, phy_val & ~ALX_AFE_10BT_100M_TH);
+        
+        if (adj_th && hw.lnk_patch) {
+            alx_write_phy_dbg(&hw, ALX_MIIDBG_MSE16DB, ALX_MSE16DB_DOWN);
+            alx_read_phy_dbg(&hw, ALX_MIIDBG_MSE20DB, &phy_val);
+            ALX_SET_FIELD(phy_val, ALX_MSE20DB_TH, ALX_MSE20DB_TH_DEF);
+            alx_write_phy_dbg(&hw, ALX_MIIDBG_MSE20DB, phy_val);
+        }
+        if (eeeCap && revid == ALX_REV_B0) {
+            alx_write_phy_dbg(&hw, ALX_MIIDBG_SRDSYSMOD, ALX_SRDSYSMOD_DEF);
+        }
+    }
+}
+
+int AtherosE2200::alxSetupSpeedDuplex(UInt32 ethadv, UInt16 eeeadv, UInt8 flowctrl)
+{
+    UInt16 adv, giga, cr;
+    UInt16 phy_val;
+    UInt32 val;
+    int err = 0;
+    
+    alx_write_phy_reg(&hw, ALX_MII_DBG_ADDR, 0);
+    val = alxReadMem32(ALX_DRV);
+    ALX_SET_FIELD(val, ALX_DRV_PHY, 0);
+    
+    /* EEE advertisement */
+    if (eeeadv) {
+        alx_write_phy_ext(&hw, ALX_MIIEXT_ANEG, ALX_MIIEXT_LOCAL_EEEADV, eeeadv);
+        
+        /* half amplify */
+        alx_write_phy_dbg(&hw, ALX_MIIDBG_AZ_ANADECT, ALX_AZ_ANADECT_DEF);
+        
+        alx_read_phy_ext(&hw, ALX_MIIEXT_ANEG, ALX_MIIEXT_EEE_ANEG, &phy_val);
+        alx_write_phy_ext(&hw, ALX_MIIEXT_ANEG, ALX_MIIEXT_EEE_ANEG, phy_val | eeeadv);
+    } else {
+        alx_write_phy_ext(&hw, ALX_MIIEXT_ANEG, ALX_MIIEXT_LOCAL_EEEADV, 0);
+    }
+
+    if (ethadv & ADVERTISED_Autoneg) {
+        adv = ADVERTISE_CSMA;
+        adv |= ethtool_adv_to_mii_adv_t(ethadv);
+        
+        if (flowctrl & ALX_FC_ANEG) {
+            if (flowctrl & ALX_FC_RX) {
+                adv |= ADVERTISED_Pause;
+                if (!(flowctrl & ALX_FC_TX))
+                    adv |= ADVERTISED_Asym_Pause;
+            } else if (flowctrl & ALX_FC_TX) {
+                adv |= ADVERTISED_Asym_Pause;
+            }
+        }
+        giga = 0;
+        if (alx_hw_giga(&hw))
+            giga = ethtool_adv_to_mii_ctrl1000_t(ethadv);
+        
+        cr = BMCR_RESET | BMCR_ANENABLE | BMCR_ANRESTART;
+        
+        if (alx_write_phy_reg(&hw, MII_ADVERTISE, adv) ||
+            alx_write_phy_reg(&hw, MII_CTRL1000, giga) ||
+            alx_write_phy_reg(&hw, MII_BMCR, cr))
+            err = -EBUSY;
+    } else {
+        cr = BMCR_RESET;
+        if (ethadv == ADVERTISED_100baseT_Half ||
+            ethadv == ADVERTISED_100baseT_Full)
+            cr |= BMCR_SPEED100;
+        if (ethadv == ADVERTISED_10baseT_Full ||
+            ethadv == ADVERTISED_100baseT_Full)
+            cr |= BMCR_FULLDPLX;
+        
+        err = alx_write_phy_reg(&hw, MII_BMCR, cr);
+    }
+    
+    if (!err) {
+        alx_write_phy_reg(&hw, ALX_MII_DBG_ADDR, ALX_PHY_INITED);
+        val |= ethadv_to_hw_cfg(&hw, ethadv);
+        
+        if (eeeadv)
+            val |= ALX_DRV_PHY_EEE;
+    }
+    
+    alxWriteMem32(ALX_DRV, val);
+    
+    return err;
+}
+
+int AtherosE2200::alxSelectPowersavingSpeed(int *speed, UInt8 *duplex)
+{
+    int i, error;
+    UInt16 lpa;
+    UInt16 eee = 0;
+    
+    error = alxReadPhyLink();
+    
+    if (error)
+        return error;
+    
+    if (hw.link_speed == SPEED_UNKNOWN) {
+        *speed = SPEED_UNKNOWN;
+        *duplex = DUPLEX_UNKNOWN;
+        return 0;
+    }
+    
+    error = alx_read_phy_reg(&hw, MII_LPA, &lpa);
+    
+    if (error)
+        return error;
+    
+    if (!(lpa & LPA_LPACK)) {
+        *speed = hw.link_speed;
+        return 0;
+    }
+    
+    if (lpa & LPA_10FULL) {
+        *speed = SPEED_10;
+        *duplex = DUPLEX_FULL;
+    } else if (lpa & LPA_10HALF) {
+        *speed = SPEED_10;
+        *duplex = DUPLEX_HALF;
+    } else if (lpa & LPA_100FULL) {
+        *speed = SPEED_100;
+        *duplex = DUPLEX_FULL;
+        eee = ALX_LOCAL_EEEADV_100BT;
+    } else {
+        *speed = SPEED_100;
+        *duplex = DUPLEX_HALF;
+    }
+    
+    if (*speed == hw.link_speed && *duplex == hw.duplex)
+        return 0;
+    
+    error = alx_write_phy_reg(&hw, ALX_MII_IER, 0);
+    
+    if (error)
+        return error;
+    
+    error = alxSetupSpeedDuplex(alx_speed_to_ethadv(*speed, *duplex) | ADVERTISED_Autoneg, eee, ALX_FC_ANEG | ALX_FC_RX | ALX_FC_TX);
+    
+    if (error)
+        return error;
+    
+    /* wait for linkup */
+    for (i = 0; i < ALX_MAX_SETUP_LNK_CYCLE; i++) {
+        IOSleep(100);
+        
+        error = alxReadPhyLink();
+        
+        if (error < 0)
+            return error;
+        
+        if (hw.link_speed != SPEED_UNKNOWN)
+            break;
+    }
+    if (i == ALX_MAX_SETUP_LNK_CYCLE)
+        return -ETIMEDOUT;
+    
+    return 0;
+}
+
 #pragma mark --- timer action methods ---
 
 void AtherosE2200::timerAction(IOTimerEventSource *timer)
 {
+    UInt32 lpi;
+    
     if (!linkUp) {
         DebugLog("Ethernet [AtherosE2200]: Timer fired while link down.\n");
         goto done;
@@ -2565,7 +2936,14 @@ void AtherosE2200::timerAction(IOTimerEventSource *timer)
     
     updateStatitics();
     timerSource->setTimeoutMS(kTimeoutMS);
-        
+
+    if (eeeEnable) {
+        eeeEnable = 0;
+        lpi = alxReadMem32(ALX_LPI_CTRL);
+        lpi |= ALX_LPI_CTRL_EN;
+        alxWriteMem32(ALX_LPI_CTRL, lpi);
+        DebugLog("Ethernet [AtherosE2200]: Enable LPI: ALX_LPI_CTRL=0x%08x.\n", lpi);
+    }
 done:
     txDescDoneLast = txDescDoneCount;
     

@@ -47,8 +47,12 @@ enum
 	MEDIUM_INDEX_100HD,
 	MEDIUM_INDEX_100FD,
 	MEDIUM_INDEX_100FDFC,
+    MEDIUM_INDEX_100FDEEE,
+    MEDIUM_INDEX_100FDFCEEE,
 	MEDIUM_INDEX_1000FD,
 	MEDIUM_INDEX_1000FDFC,
+    MEDIUM_INDEX_1000FDEEE,
+    MEDIUM_INDEX_1000FDFCEEE,
 	MEDIUM_INDEX_COUNT
 };
 
@@ -61,12 +65,19 @@ enum {
 };
 
 enum {
+    kEEETypeNo = 0,
+    kEEETypeYes = 1,
+    kEEETypeCount
+};
+
+enum {
     kChipUnkown = 0,
     kChipAR8161,
     kChipAR8162,
     kChipAR8171,
     kChipAR8172,
     kChipKillerE2200,
+    kChipKillerE2400,
     kNumChips
 };
 
@@ -304,7 +315,11 @@ private:
     inline void alxDisableIRQ();
     inline void alxGetChkSumCommand(UInt32 *cmd, mbuf_csum_request_flags_t checksums);
     int alxReadPhyLink();
-
+    void alxResetPhy();
+    void alxPostPhyLink();
+    int alxSetupSpeedDuplex(UInt32 ethadv, UInt16 eeeadv, UInt8 flowctrl);
+    int alxSelectPowersavingSpeed(int *speed, UInt8 *duplex);
+    
     /* timer action */
     void timerAction(IOTimerEventSource *timer);
     
@@ -348,6 +363,12 @@ private:
     UInt32 multicastFilter[2];
     UInt16 rxNextDescIndex;
     
+    /* EEE support */
+    UInt16 eeeCap;
+    UInt16 eeeAdv;
+    UInt16 eeeLpa;
+    UInt16 eeeEnable;
+    
     /* power management data */
     unsigned long powerState;
     
@@ -365,7 +386,6 @@ private:
     UInt8 pcieCapOffset;
     UInt8 pciPMCtrlOffset;
     UInt8 flowControl;
-    
     
     /* flags */
     bool isEnabled;
