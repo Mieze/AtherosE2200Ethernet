@@ -43,6 +43,9 @@ Troubleshooting
   - Keep in mind that there are many manufacturers of network equipment. Although Ethernet is an IEEE standard, different implementations may show different behavior causing incompatibilities. In case you are having trouble try a different switch or a different cable.
 
 Changelog
+  - Version 2.1.0d1 (2015-11-29)
+    - Supports Energy Efficient Ethernet (EEE).
+    - Added support for Killer E2400.
   - Version 2.0.1 (2015-08-12)
     - Improved flow control support in 100MBit mode.
   - Version 2.0.0 (2015-04-21)
