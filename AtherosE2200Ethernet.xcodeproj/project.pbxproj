@@ -401,7 +401,7 @@
 				INFOPLIST_FILE = "AtherosE2200Ethernet/AtherosE2200Ethernet-Info.plist";
 				MACOSX_DEPLOYMENT_TARGET = 10.8;
 				MODULE_NAME = com.insanelymac.AtherosE2200Ethernet;
-				MODULE_VERSION = 1.1.0d1;
+				MODULE_VERSION = 1.1.0;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx10.9;
 				WRAPPER_EXTENSION = kext;
@@ -419,7 +419,7 @@
 				INFOPLIST_FILE = "AtherosE2200Ethernet/AtherosE2200Ethernet-Info.plist";
 				MACOSX_DEPLOYMENT_TARGET = 10.8;
 				MODULE_NAME = com.insanelymac.AtherosE2200Ethernet;
-				MODULE_VERSION = 1.1.0d1;
+				MODULE_VERSION = 1.1.0;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx10.9;
 				WRAPPER_EXTENSION = kext;
@@ -437,7 +437,7 @@
 				INFOPLIST_FILE = "AtherosE2200Ethernet/AtherosE2200Ethernet-Info.plist";
 				MACOSX_DEPLOYMENT_TARGET = 10.8;
 				MODULE_NAME = com.insanelymac.AtherosE2200Ethernet;
-				MODULE_VERSION = 2.1.0d1;
+				MODULE_VERSION = 2.1.0;
 				PRODUCT_NAME = AtherosE2200Ethernet;
 				SDKROOT = macosx10.9;
 				WRAPPER_EXTENSION = kext;
@@ -455,7 +455,7 @@
 				INFOPLIST_FILE = "AtherosE2200Ethernet/AtherosE2200Ethernet-Info.plist";
 				MACOSX_DEPLOYMENT_TARGET = 10.8;
 				MODULE_NAME = com.insanelymac.AtherosE2200Ethernet;
-				MODULE_VERSION = 2.1.0d1;
+				MODULE_VERSION = 2.1.0;
 				PRODUCT_NAME = AtherosE2200Ethernet;
 				SDKROOT = macosx10.9;
 				WRAPPER_EXTENSION = kext;

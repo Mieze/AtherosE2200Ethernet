@@ -2116,7 +2116,7 @@ bool AtherosE2200::alxStart(UInt32 maxIntrRate)
 	hw.imt = (UInt16)maxIntrRate;
 	intrMask = (ALX_ISR_MISC | ALX_ISR_PHY);
 	hw.dma_chnl = hw.max_dma_chnl;
-	hw.ith_tpd = 85;
+	hw.ith_tpd = 192;
 	hw.link_speed = SPEED_UNKNOWN;
 	hw.duplex = DUPLEX_UNKNOWN;
 	hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_10baseT_Half | ADVERTISED_10baseT_Full | ADVERTISED_100baseT_Full | ADVERTISED_100baseT_Half | ADVERTISED_1000baseT_Full);
@@ -2323,9 +2323,7 @@ void AtherosE2200::alxConfigureBasic()
 	alxWriteMem32(ALX_SMB_TIMER, hw.smb_timer * 500UL);
     
 	val = alxReadMem32(ALX_MASTER);
-	val |= ALX_MASTER_IRQMOD2_EN |
-    ALX_MASTER_IRQMOD1_EN |
-    ALX_MASTER_SYSALVTIMER_EN;
+	val |= ALX_MASTER_IRQMOD2_EN | ALX_MASTER_IRQMOD1_EN | ALX_MASTER_SYSALVTIMER_EN;
 	alxWriteMem32(ALX_MASTER, val);
 	alxWriteMem32(ALX_IRQ_MODU_TIMER, (hw.imt >> 1) << ALX_IRQ_MODU_TIMER1_SHIFT);
 	/* intr re-trig timeout */
@@ -2756,7 +2754,7 @@ void AtherosE2200::alxPostPhyLink()
             }
         }
         /* phy link-down in 1000BT/AZ mode */
-        if (eeeCap && revid == ALX_REV_B0 && hw.link_speed == SPEED_1000) {
+        if (eeeEnable && revid == ALX_REV_B0 && hw.link_speed == SPEED_1000) {
             alx_write_phy_dbg(&hw, ALX_MIIDBG_SRDSYSMOD, ALX_SRDSYSMOD_DEF & ~ALX_SRDSYSMOD_DEEMP_EN);
         }
     } else {
