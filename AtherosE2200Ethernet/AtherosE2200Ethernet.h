@@ -249,6 +249,8 @@ public:
 	
 #ifdef __PRIVATE_SPI__
     virtual IOReturn outputStart(IONetworkInterface *interface, IOOptionBits options );
+    virtual IOReturn setInputPacketPollingEnable(IONetworkInterface *interface, bool enabled);
+    virtual void pollInputPackets(IONetworkInterface *interface, uint32_t maxCount, IOMbufQueue *pollQueue, void *context);
 #else
     virtual UInt32 outputPacket(mbuf_t m, void *param);
 #endif /* __PRIVATE_SPI__ */
@@ -289,7 +291,13 @@ private:
     bool initEventSources(IOService *provider);
     void interruptOccurred(OSObject *client, IOInterruptEventSource *src, int count);
     void txInterrupt();
+    
+#ifdef __PRIVATE_SPI__
+    UInt32 rxInterrupt(IONetworkInterface *interface, uint32_t maxCount, IOMbufQueue *pollQueue, void *context);
+#else
     void rxInterrupt();
+#endif /* __PRIVATE_SPI__ */
+
     bool setupDMADescriptors();
     void freeDMADescriptors();
     void txClearDescriptors();
@@ -379,6 +387,11 @@ private:
     
     UInt32 chip;
     UInt32 intrMask;
+    
+#ifdef __PRIVATE_SPI__
+    IONetworkPacketPollingParameters pollParams;
+#endif /* __PRIVATE_SPI__ */
+
     struct alx_hw hw;
     struct pci_dev pciDeviceData;
     struct IOEthernetAddress currMacAddr;
@@ -393,7 +406,9 @@ private:
 	bool multicastMode;
     bool linkUp;
     
-#ifndef __PRIVATE_SPI__
+#ifdef __PRIVATE_SPI__
+    bool polling;
+#else
     bool stalled;
 #endif /* __PRIVATE_SPI__ */
     

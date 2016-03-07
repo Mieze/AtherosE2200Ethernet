@@ -143,7 +143,9 @@ bool AtherosE2200::init(OSDictionary *properties)
         multicastMode = false;
         linkUp = false;
         
-#ifndef __PRIVATE_SPI__
+#ifdef __PRIVATE_SPI__
+        polling = false;
+#else
         stalled = false;
 #endif /* __PRIVATE_SPI__ */
         
@@ -250,7 +252,7 @@ bool AtherosE2200::start(IOService *provider)
         goto error2;
     }
     versionString = OSDynamicCast(OSString, getProperty(kDriverVersionName));
-    newIntrRate = 500000 / hw.imt;
+    newIntrRate = 1000000 / hw.imt;
     
     if (versionString)
         IOLog("Ethernet [AtherosE2200]: Version %s using max interrupt rate %u. Please don't support tonymacx86.com!\n", versionString->getCStringNoCopy(), newIntrRate);
@@ -427,7 +429,9 @@ IOReturn AtherosE2200::enable(IONetworkInterface *netif)
     txDescDoneCount = txDescDoneLast = 0;
     deadlockWarn = 0;
 
-#ifndef __PRIVATE_SPI__
+#ifdef __PRIVATE_SPI__
+    polling = false;
+#else
     txQueue->setCapacity(kTransmitQueueCapacity);
     txStallCount = txStallLast = 0;
     stalled = false;
@@ -455,6 +459,8 @@ IOReturn AtherosE2200::disable(IONetworkInterface *netif)
 #ifdef __PRIVATE_SPI__
     netif->stopOutputThread();
     netif->flushOutputQueue();
+    
+    polling = false;
 #else
     txQueue->stop();
     txQueue->flush();
@@ -830,6 +836,14 @@ bool AtherosE2200::configureInterface(IONetworkInterface *interface)
         result = false;
         goto done;
     }
+    error = interface->configureInputPacketPolling(kNumRxDesc, kIONetworkWorkLoopSynchronous);
+    
+    if (error != kIOReturnSuccess) {
+        IOLog("Ethernet [AtherosE2200]: configureInputPacketPolling() failed\n.");
+        result = false;
+        goto done;
+    }
+
 #endif /* __PRIVATE_SPI__ */
 
     if ((chip == kChipAR8162) || (chip == kChipAR8172))
@@ -1030,7 +1044,7 @@ IOReturn AtherosE2200::setHardwareAddress(const IOEthernetAddress *addr)
     
     if (addr) {
         memcpy(&currMacAddr.bytes[0], &addr->bytes[0], kIOEthernetAddressSize);
-        alxSetHardwareAddress(addr);
+        //alxSetHardwareAddress(addr);
 
         result = kIOReturnSuccess;
     }
@@ -1148,6 +1162,45 @@ IOReturn AtherosE2200::selectMedium(const IONetworkMedium *medium)
 done:
     return result;
 }
+
+#pragma mark --- rx poll methods ---
+
+#ifdef __PRIVATE_SPI__
+
+IOReturn AtherosE2200::setInputPacketPollingEnable(IONetworkInterface *interface, bool enabled)
+{
+    //DebugLog("setInputPacketPollingEnable() ===>\n");
+    
+    if (enabled) {
+        intrMask = (ALX_ISR_MISC | ALX_ISR_PHY);
+        polling = true;
+    } else {
+        intrMask = (ALX_ISR_MISC | ALX_ISR_PHY | ALX_ISR_RX_Q0 | ALX_ISR_TX_Q0);
+        polling = false;
+    }
+    if(isEnabled)
+        alxWriteMem32(ALX_IMR, intrMask);
+    
+    //DebugLog("input polling %s.\n", enabled ? "enabled" : "disabled");
+    
+    //DebugLog("setInputPacketPollingEnable() <===\n");
+    
+    return kIOReturnSuccess;
+}
+
+void AtherosE2200::pollInputPackets(IONetworkInterface *interface, uint32_t maxCount, IOMbufQueue *pollQueue, void *context )
+{
+    //DebugLog("pollInputPackets() ===>\n");
+    
+    rxInterrupt(interface, maxCount, pollQueue, context);
+    
+    /* Finally cleanup the transmitter ring. */
+    txInterrupt();
+    
+    //DebugLog("pollInputPackets() <===\n");
+}
+
+#endif /* __PRIVATE_SPI__ */
 
 #pragma mark --- data structure initialization methods ---
 
@@ -1345,8 +1398,8 @@ bool AtherosE2200::setupDMADescriptors()
         }
         rxMbufArray[i] = m;
         
-        if (rxMbufCursor->getPhysicalSegmentsWithCoalesce(m, &rxSegment, 1) != 1) {
-            IOLog("Ethernet [AtherosE2200]: getPhysicalSegmentsWithCoalesce() for receive buffer failed.\n");
+        if (rxMbufCursor->getPhysicalSegments(m, &rxSegment, 1) != 1) {
+            IOLog("Ethernet [AtherosE2200]: getPhysicalSegments() for receive buffer failed.\n");
             goto error4;
         }
         rxFreeDescArray[i].addr = OSSwapHostToLittleInt64(rxSegment.location);
@@ -1469,30 +1522,36 @@ void AtherosE2200::txInterrupt()
     if (txDirtyDescIndex != newDirtyIndex) {
         while (txDirtyDescIndex != newDirtyIndex) {
             if (txMbufArray[txDirtyDescIndex]) {
-                freePacket(txMbufArray[txDirtyDescIndex]);
+                freePacket(txMbufArray[txDirtyDescIndex], kDelayFree);
                 txMbufArray[txDirtyDescIndex] = NULL;
             }
             txDescDoneCount++;
             OSIncrementAtomic(&txNumFreeDesc);
             ++txDirtyDescIndex &= kTxDescMask;
         }
+        releaseFreePackets();
         
 #ifdef __PRIVATE_SPI__
         if (txNumFreeDesc > kTxQueueWakeTreshhold)
             netif->signalOutputThread();
+        
+        if (!polling)
+            etherStats->dot3TxExtraEntry.interrupts++;
 #else
         if (stalled && (txNumFreeDesc > kTxQueueWakeTreshhold)) {
             DebugLog("Ethernet [AtherosE2200]: Restart stalled queue!\n");
             txQueue->service(IOBasicOutputQueue::kServiceAsync);
             stalled = false;
         }
+        etherStats->dot3TxExtraEntry.interrupts++;
 #endif /* __PRIVATE_SPI__ */
 
     }
-    etherStats->dot3TxExtraEntry.interrupts++;
 }
 
-void AtherosE2200::rxInterrupt()
+#ifdef __PRIVATE_SPI__
+
+UInt32 AtherosE2200::rxInterrupt(IONetworkInterface *interface, uint32_t maxCount, IOMbufQueue *pollQueue, void *context)
 {
     IOPhysicalSegment rxSegment;
     QCARxRetDesc *desc = &rxRetDescArray[rxNextDescIndex];
@@ -1503,6 +1562,114 @@ void AtherosE2200::rxInterrupt()
     UInt16 index, numBufs;
     UInt16 vlanTag;
     UInt16 goodPkts = 0;
+    bool replaced;
+    
+    //DebugLog("Ethernet [AtherosE2200]: rxInterrupt()\n");
+    
+    while (((status3 = OSSwapLittleToHostInt32(desc->word3)) & RRD_UPDATED) && (goodPkts < maxCount)) {
+        status0 = OSSwapLittleToHostInt32(desc->word0);
+        status2 = OSSwapLittleToHostInt32(desc->word2);
+        pktSize = (status3 & RRD_PKTLEN_MASK) - kIOEthernetCRCSize;
+        index = (status0 >> RRD_SI_SHIFT) & RRD_SI_MASK;
+        numBufs = (status0 >> RRD_NOR_SHIFT) & 0x000F;
+        vlanTag = (status3 & RRD_VLTAGGED) ? OSSwapInt16(status2 & RRD_VLTAG_MASK) : 0;
+        bufPkt = rxMbufArray[index];
+        
+        //DebugLog("Ethernet [AtherosE2200]: Packet with index=%u, numBufs=%u, pktSize=%u, errors=0x%x\n", index, numBufs, pktSize, errors);
+        
+        /* As we don't support jumbo frames we consider fragmented packets as errors. */
+        if (numBufs > 1) {
+            DebugLog("Ethernet [AtherosE2200]: Fragmented packet.\n");
+            etherStats->dot3StatsEntry.frameTooLongs++;
+            index =  (index + (numBufs - 1)) & kRxDescMask;
+            goto nextDesc;
+        }
+        /* Skip bad packet. */
+        if (status3 & RRD_ERR_MASK) {
+            DebugLog("Ethernet [AtherosE2200]: Bad packet.\n");
+            etherStats->dot3StatsEntry.internalMacReceiveErrors++;
+            goto nextDesc;
+        }
+        newPkt = replaceOrCopyPacket(&bufPkt, pktSize, &replaced);
+        
+        if (!newPkt) {
+            /* Allocation of a new packet failed so that we must leave the original packet in place. */
+            DebugLog("Ethernet [AtherosE2200]: replaceOrCopyPacket() failed.\n");
+            etherStats->dot3RxExtraEntry.resourceErrors++;
+            goto nextDesc;
+        }
+        /* If the packet was replaced we have to update the free descriptor's buffer address. */
+        if (replaced) {
+            if (rxMbufCursor->getPhysicalSegments(bufPkt, &rxSegment, 1) != 1) {
+                DebugLog("Ethernet [AtherosE2200]: getPhysicalSegments() failed.\n");
+                etherStats->dot3RxExtraEntry.resourceErrors++;
+                freePacket(bufPkt);
+                goto nextDesc;
+            }
+            rxMbufArray[index] = bufPkt;
+            rxFreeDescArray[index].addr = OSSwapHostToLittleInt64(rxSegment.location);
+        }
+        switch (getProtocolID(status2)) {
+            case RRD_PID_IPV4:
+                validMask = (status3 & RRD_ERR_IPV4) ? 0 : kChecksumIP;
+                break;
+                
+            case RRD_PID_IPV6TCP:
+                validMask = (status3 & RRD_ERR_L4) ? 0 : kChecksumTCPIPv6;
+                break;
+                
+            case RRD_PID_IPV4TCP:
+                validMask = (status3 & (RRD_ERR_L4 | RRD_ERR_IPV4)) ? 0 : (kChecksumTCP | kChecksumIP);
+                break;
+                
+            case RRD_PID_IPV6UDP:
+                validMask = (status3 & RRD_ERR_L4) ? 0 : kChecksumUDPIPv6;
+                break;
+                
+            case RRD_PID_IPV4UDP:
+                validMask = (status3 & (RRD_ERR_L4 | RRD_ERR_IPV4)) ? 0 : (kChecksumUDP | kChecksumIP);
+                break;
+                
+            default:
+                validMask = 0;
+        }
+        if (validMask)
+            setChecksumResult(newPkt, kChecksumFamilyTCPIP, validMask, validMask);
+        
+        /* Also get the VLAN tag if there is any. */
+        if (vlanTag)
+            setVlanTag(newPkt, vlanTag);
+        
+        mbuf_pkthdr_setlen(newPkt, pktSize);
+        mbuf_setlen(newPkt, pktSize);
+        interface->enqueueInputPacket(newPkt, pollQueue);
+        goodPkts++;
+        
+        /* Finally update the descriptor and get the next one to examine. */
+    nextDesc:
+        desc->word3 = OSSwapHostToLittleInt32(status3 & ~RRD_UPDATED);
+        
+        ++rxNextDescIndex &= kRxDescMask;
+        desc = &rxRetDescArray[rxNextDescIndex];
+        
+        alxWriteMem16(ALX_RFD_PIDX, index);
+    }
+    return goodPkts;
+}
+
+#else
+
+void AtherosE2200::rxInterrupt()
+{
+    IOPhysicalSegment rxSegment;
+    QCARxRetDesc *desc = &rxRetDescArray[rxNextDescIndex];
+    mbuf_t bufPkt, newPkt;
+    UInt32 status0, status2, status3;
+    UInt32 pktSize;
+    UInt32 validMask;
+    UInt16 goodPkts = 0;
+    UInt16 index, numBufs;
+    UInt16 vlanTag;
     bool replaced;
     
     //DebugLog("Ethernet [AtherosE2200]: rxInterrupt()\n");
@@ -1541,8 +1708,8 @@ void AtherosE2200::rxInterrupt()
         }
         /* If the packet was replaced we have to update the free descriptor's buffer address. */
         if (replaced) {
-            if (rxMbufCursor->getPhysicalSegmentsWithCoalesce(bufPkt, &rxSegment, 1) != 1) {
-                DebugLog("Ethernet [AtherosE2200]: getPhysicalSegmentsWithCoalesce() failed.\n");
+            if (rxMbufCursor->getPhysicalSegments(bufPkt, &rxSegment, 1) != 1) {
+                DebugLog("Ethernet [AtherosE2200]: getPhysicalSegments() failed.\n");
                 etherStats->dot3RxExtraEntry.resourceErrors++;
                 freePacket(bufPkt);
                 goto nextDesc;
@@ -1600,6 +1767,8 @@ nextDesc:
     //etherStats->dot3RxExtraEntry.interrupts++;
 }
 
+#endif /* __PRIVATE_SPI__ */
+
 void AtherosE2200::checkLinkStatus()
 {
 	int oldSpeed;
@@ -1624,7 +1793,8 @@ void AtherosE2200::checkLinkStatus()
 void AtherosE2200::interruptOccurred(OSObject *client, IOInterruptEventSource *src, int count)
 {
 	UInt32 status = alxReadMem32(ALX_ISR);
-
+    UInt32 packets;
+    
     /* hotplug/major error/no more work/shared irq */
 	if (status & ALX_ISR_DIS || !(status & intrMask))
         goto done;
@@ -1640,17 +1810,26 @@ void AtherosE2200::interruptOccurred(OSObject *client, IOInterruptEventSource *s
 	}
 	if (status & ALX_ISR_ALERT)
         IOLog("Ethernet [AtherosE2200]: Alert interrupt. ISR=0x%x\n", status);
-/*
-	if (status & (ALX_ISR_TX_Q0 | ALX_ISR_RX_Q0)) {
-        txInterrupt();
-        rxInterrupt();
+
+#ifdef __PRIVATE_SPI__
+    if (!polling) {
+        if (status & ALX_ISR_TX_Q0)
+            txInterrupt();
+        
+        if (status & ALX_ISR_RX_Q0) {
+            packets = rxInterrupt(netif, kNumRxDesc, NULL, NULL);
+            
+            if (packets)
+                netif->flushInputQueue();
+        }
     }
-*/
-	if (status & ALX_ISR_TX_Q0)
+#else
+    if (status & ALX_ISR_TX_Q0)
         txInterrupt();
     
     if (status & ALX_ISR_RX_Q0)
         rxInterrupt();
+#endif /* __PRIVATE_SPI__ */
 
 	if (status & ALX_ISR_PHY)
         checkLinkStatus();
@@ -1793,6 +1972,24 @@ void AtherosE2200::setLinkUp()
     setLinkStatus(kIONetworkLinkValid | kIONetworkLinkActive, mediumTable[mediumIndex], mediumSpeed, NULL);
     
 #ifdef __PRIVATE_SPI__
+    /* Update poll params according to link speed. */
+    bzero(&pollParams, sizeof(IONetworkPacketPollingParameters));
+
+    if (hw.link_speed == SPEED_10) {
+        pollParams.lowThresholdPackets = 2;
+        pollParams.highThresholdPackets = 8;
+        pollParams.lowThresholdBytes = 0x400;
+        pollParams.highThresholdBytes = 0x1800;
+        pollParams.pollIntervalTime = 1000000;  /* 1ms */
+    } else {
+        pollParams.lowThresholdPackets = 10;
+        pollParams.highThresholdPackets = 40;
+        pollParams.lowThresholdBytes = 0x1000;
+        pollParams.highThresholdBytes = 0x10000;
+        pollParams.pollIntervalTime = (hw.link_speed == SPEED_1000) ? 200000 : 800000;  /* 200µs / 800µs */
+    }
+    netif->setPacketPollingParameters(&pollParams, 0);
+
     /* Start output thread, statistics update and watchdog. */
     netif->startOutputThread();
 #else
@@ -2106,7 +2303,7 @@ bool AtherosE2200::alxStart(UInt32 maxIntrRate)
     else if (maxIntrRate > 10000)
         maxIntrRate = 10000;
 
-    maxIntrRate = (500000 / maxIntrRate);
+    maxIntrRate = (1000000 / maxIntrRate);
 
     hw.lnk_patch = ((pciDeviceData.device == ALX_DEV_ID_AR8161) && (pciDeviceData.subsystem_vendor == 0x1969) && (pciDeviceData.subsystem_device == 0x0091) && (pciDeviceData.revision == 0));
     
@@ -2182,6 +2379,8 @@ void AtherosE2200::alxEnable()
     alx_reset_mac(&hw);
 	alxConfigure();
     
+    polling = false;
+
 	if (useMSI) {
 		alxWriteMem32(ALX_MSI_RETRANS_TIMER, msiControl | ALX_MSI_MASK_SEL_LINE);
         
@@ -2210,7 +2409,8 @@ int AtherosE2200::alxDisable()
     
     hw.link_speed = SPEED_UNKNOWN;
     hw.duplex = DUPLEX_UNKNOWN;
-
+    polling = false;
+    
 	alx_reset_mac(&hw);
     
 	/* disable l0s/l1 */
@@ -2337,6 +2537,8 @@ void AtherosE2200::alxConfigureBasic()
     
 	if (rawMTU > ALX_MTU_JUMBO_TH)
 		hw.rx_ctrl &= ~ALX_MAC_CTRL_FAST_PAUSE;
+    else
+        hw.rx_ctrl |= ALX_MAC_CTRL_FAST_PAUSE;
 
 	if ((rawMTU + 8) < ALX_TXQ1_JUMBO_TSO_TH)
 		val = (rawMTU + 8 + 7) >> 3;
