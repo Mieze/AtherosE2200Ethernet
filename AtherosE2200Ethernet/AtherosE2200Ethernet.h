@@ -190,6 +190,7 @@ enum
 
 enum
 {
+    kIOPCIEDevCapability = 4,
     kIOPCIEDeviceControl = 8,
     kIOPCIELinkCapability = 12,
     kIOPCIELinkControl = 16,
@@ -225,6 +226,11 @@ enum
 #define kDriverVersionName "Driver_Version"
 #define kNameLenght 64
 
+#ifdef __PRIVATE_SPI__
+
+#define kEnableRxPollName "rxPolling"
+
+#endif /* __PRIVATE_SPI__ */
 
 class AtherosE2200 : public super
 {
@@ -327,7 +333,8 @@ private:
     void alxPostPhyLink();
     int alxSetupSpeedDuplex(UInt32 ethadv, UInt16 eeeadv, UInt8 flowctrl);
     int alxSelectPowersavingSpeed(int *speed, UInt8 *duplex);
-    
+    void alxSpeedDuplexForMedium(const IONetworkMedium *medium);
+
     /* timer action */
     void timerAction(IOTimerEventSource *timer);
     
@@ -389,6 +396,7 @@ private:
     UInt32 intrMask;
     
 #ifdef __PRIVATE_SPI__
+    UInt32 linkOpts;
     IONetworkPacketPollingParameters pollParams;
 #endif /* __PRIVATE_SPI__ */
 
@@ -407,6 +415,7 @@ private:
     bool linkUp;
     
 #ifdef __PRIVATE_SPI__
+    bool rxPoll;
     bool polling;
 #else
     bool stalled;

@@ -84,17 +84,17 @@ static UInt32 mediumSpeedArray[MEDIUM_INDEX_COUNT] = {
 static const char *speed1GName = "1-Gigabit";
 static const char *speed100MName = "100-Megabit";
 static const char *speed10MName = "10-Megabit";
-static const char *duplexFullName = "Full-duplex";
-static const char *duplexHalfName = "Half-duplex";
+static const char *duplexFullName = "full-duplex";
+static const char *duplexHalfName = "half-duplex";
 
 static const char *flowControlNames[] = {
-    "No flow-control",
+    "no flow-control",
     "Rx/Tx flow-control",
 };
 
 static const char* eeeNames[kEEETypeCount] = {
     "",
-    ", energy efficient ethernet"
+    ", energy-efficient-ethernet"
 };
 
 static unsigned const ethernet_polynomial = 0x04c11db7U;
@@ -144,7 +144,9 @@ bool AtherosE2200::init(OSDictionary *properties)
         linkUp = false;
         
 #ifdef __PRIVATE_SPI__
+        linkOpts = 0;
         polling = false;
+        rxPoll = false;
 #else
         stalled = false;
 #endif /* __PRIVATE_SPI__ */
@@ -392,7 +394,6 @@ void AtherosE2200::systemWillShutdown(IOOptionBits specifier)
 /* IONetworkController methods. */
 IOReturn AtherosE2200::enable(IONetworkInterface *netif)
 {
-    const IONetworkMedium *selectedMedium;
     IOReturn result = kIOReturnError;
     
     DebugLog("enable() ===>\n");
@@ -412,14 +413,6 @@ IOReturn AtherosE2200::enable(IONetworkInterface *netif)
         IOLog("Ethernet [AtherosE2200]: Error allocating DMA descriptors.\n");
         goto done;
     }
-    selectedMedium = getSelectedMedium();
-    
-    if (!selectedMedium) {
-        DebugLog("Ethernet [AtherosE2200]: No medium selected. Falling back to autonegotiation.\n");
-        selectedMedium = mediumTable[MEDIUM_INDEX_AUTO];
-    }
-    selectMedium(selectedMedium);
-    setLinkStatus(kIONetworkLinkValid);
     alxEnable();
     
     /* In case we are using an msi the interrupt hasn't been enabled by start(). */
@@ -479,12 +472,6 @@ IOReturn AtherosE2200::disable(IONetworkInterface *netif)
         interruptSource->disable();
     
     alxDisable();
-    
-    if (linkUp)
-        IOLog("Ethernet [AtherosE2200]: Link down on en%u\n", netif->getUnitNumber());
-    
-    linkUp = false;
-    setLinkStatus(kIONetworkLinkValid);
     txClearDescriptors();
     
     if (pciDevice && pciDevice->isOpen())
@@ -836,12 +823,14 @@ bool AtherosE2200::configureInterface(IONetworkInterface *interface)
         result = false;
         goto done;
     }
-    error = interface->configureInputPacketPolling(kNumRxDesc, kIONetworkWorkLoopSynchronous);
-    
-    if (error != kIOReturnSuccess) {
-        IOLog("Ethernet [AtherosE2200]: configureInputPacketPolling() failed\n.");
-        result = false;
-        goto done;
+    if (rxPoll) {
+        error = interface->configureInputPacketPolling(kNumRxDesc, kIONetworkWorkLoopSynchronous);
+        
+        if (error != kIOReturnSuccess) {
+            IOLog("Ethernet [AtherosE2200]: configureInputPacketPolling() failed\n.");
+            result = false;
+            goto done;
+        }
     }
 
 #endif /* __PRIVATE_SPI__ */
@@ -1036,16 +1025,23 @@ IOReturn AtherosE2200::getPacketFilters(const OSSymbol *group, UInt32 *filters) 
     return result;
 }
 
+/* There seems to be a hardware bug which prevents the Killer and AR816x/AR817x
+ * NICs from changing their MAC address. Writes to the MAC adddress registers
+ * result in a messed up address register effectively killing unicast packet
+ * reception until the next reset. As a workaround, we refuse to change the
+ * NIC's MAC address.
+ */
 IOReturn AtherosE2200::setHardwareAddress(const IOEthernetAddress *addr)
 {
     IOReturn result = kIOReturnError;
     
     DebugLog("setHardwareAddress() ===>\n");
     
-    if (addr) {
+    if (addr && ether_addr_equal(&addr->bytes[0], &origMacAddr.bytes[0])) {
+/*
         memcpy(&currMacAddr.bytes[0], &addr->bytes[0], kIOEthernetAddressSize);
-        //alxSetHardwareAddress(addr);
-
+        alxSetHardwareAddress(addr);
+*/
         result = kIOReturnSuccess;
     }
     
@@ -1089,69 +1085,7 @@ IOReturn AtherosE2200::selectMedium(const IONetworkMedium *medium)
     DebugLog("selectMedium() ===>\n");
     
     if (medium) {
-        hw.flowctrl = (ALX_FC_ANEG | ALX_FC_RX | ALX_FC_TX);
-        eeeAdv = 0;
-        
-        switch (medium->getIndex()) {
-            case MEDIUM_INDEX_AUTO:
-                hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_10baseT_Half | ADVERTISED_10baseT_Full | ADVERTISED_100baseT_Full | ADVERTISED_100baseT_Half);
-                eeeAdv = eeeCap;
-                
-                if (gbCapable)
-                    hw.adv_cfg |= ADVERTISED_1000baseT_Full;
-                break;
-                
-            case MEDIUM_INDEX_10HD:
-                hw.adv_cfg = (ADVERTISED_10baseT_Half);
-                break;
-                
-            case MEDIUM_INDEX_10FD:
-                hw.adv_cfg = (ADVERTISED_10baseT_Full);
-                break;
-                
-            case MEDIUM_INDEX_100HD:
-                hw.adv_cfg = (ADVERTISED_100baseT_Half);
-                break;
-                
-            case MEDIUM_INDEX_100FD:
-                hw.adv_cfg = (ADVERTISED_100baseT_Full);
-                break;
-                
-            case MEDIUM_INDEX_100FDFC:
-                hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_100baseT_Full);
-                break;
-
-            case MEDIUM_INDEX_100FDEEE:
-                hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_100baseT_Full);
-                hw.flowctrl = ALX_FC_ANEG;
-                eeeAdv = eeeCap;
-                break;
-                
-            case MEDIUM_INDEX_100FDFCEEE:
-                hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_100baseT_Full);
-                eeeAdv = eeeCap;
-                break;
-                
-            case MEDIUM_INDEX_1000FD:
-                hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_1000baseT_Full);
-                hw.flowctrl = ALX_FC_ANEG;
-                break;
-                
-            case MEDIUM_INDEX_1000FDFC:
-                hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_1000baseT_Full);
-                break;
-                
-            case MEDIUM_INDEX_1000FDEEE:
-                hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_1000baseT_Full);
-                hw.flowctrl = ALX_FC_ANEG;
-                eeeAdv = eeeCap;
-                break;
-                
-            case MEDIUM_INDEX_1000FDFCEEE:
-                hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_1000baseT_Full);
-                eeeAdv = eeeCap;
-                break;
-        }
+        alxSpeedDuplexForMedium(medium);
         setLinkDown();
         alxSetupSpeedDuplex(hw.adv_cfg, eeeAdv, hw.flowctrl);
         setCurrentMedium(medium);
@@ -1489,6 +1423,17 @@ void AtherosE2200::getParams(UInt32 *intrLimit)
     OSBoolean *tso6;
     OSBoolean *csoV6;
     
+#ifdef __PRIVATE_SPI__
+    OSBoolean *poll;
+#endif /* __PRIVATE_SPI__ */
+
+#ifdef __PRIVATE_SPI__
+    poll = OSDynamicCast(OSBoolean, getProperty(kEnableRxPollName));
+    rxPoll = (poll) ? poll->getValue() : false;
+    
+    IOLog("Ethernet [AtherosE2200]: RxPoll support %s.\n", rxPoll ? onName : offName);
+#endif /* __PRIVATE_SPI__ */
+
     tso4 = OSDynamicCast(OSBoolean, getProperty(kEnableTSO4Name));
     enableTSO4 = (tso4) ? tso4->getValue() : false;
     
@@ -1962,37 +1907,43 @@ void AtherosE2200::setLinkUp()
     alxWriteMem32(ALX_IMR, intrMask);
     
     alxPostPhyLink();
-    alx_enable_aspm(&hw, true, true);
+    alx_enable_aspm(&hw, false, false);
+    pciDevice->setASPMState(this, 0);
 
     /* Adjust MAC's speed, duplex and flow control settings. */
     alx_start_mac(&hw);
     alx_cfg_mac_flowcontrol(&hw, flowControl);
     
     linkUp = true;
-    setLinkStatus(kIONetworkLinkValid | kIONetworkLinkActive, mediumTable[mediumIndex], mediumSpeed, NULL);
     
 #ifdef __PRIVATE_SPI__
-    /* Update poll params according to link speed. */
-    bzero(&pollParams, sizeof(IONetworkPacketPollingParameters));
-
-    if (hw.link_speed == SPEED_10) {
-        pollParams.lowThresholdPackets = 2;
-        pollParams.highThresholdPackets = 8;
-        pollParams.lowThresholdBytes = 0x400;
-        pollParams.highThresholdBytes = 0x1800;
-        pollParams.pollIntervalTime = 1000000;  /* 1ms */
-    } else {
-        pollParams.lowThresholdPackets = 10;
-        pollParams.highThresholdPackets = 40;
-        pollParams.lowThresholdBytes = 0x1000;
-        pollParams.highThresholdBytes = 0x10000;
-        pollParams.pollIntervalTime = (hw.link_speed == SPEED_1000) ? 200000 : 800000;  /* 200µs / 800µs */
+    setLinkStatus((kIONetworkLinkValid | kIONetworkLinkActive | linkOpts), mediumTable[mediumIndex], mediumSpeed, NULL);
+    linkOpts = 0;
+    
+    if (rxPoll) {
+        /* Update poll params according to link speed. */
+        bzero(&pollParams, sizeof(IONetworkPacketPollingParameters));
+        
+        if (hw.link_speed == SPEED_10) {
+            pollParams.lowThresholdPackets = 2;
+            pollParams.highThresholdPackets = 8;
+            pollParams.lowThresholdBytes = 0x400;
+            pollParams.highThresholdBytes = 0x1800;
+            pollParams.pollIntervalTime = 1000000;  /* 1ms */
+        } else {
+            pollParams.lowThresholdPackets = 10;
+            pollParams.highThresholdPackets = 40;
+            pollParams.lowThresholdBytes = 0x1000;
+            pollParams.highThresholdBytes = 0x10000;
+            pollParams.pollIntervalTime = (hw.link_speed == SPEED_1000) ? 200000 : 1000000;  /* 200µs / 1ms */
+        }
+        netif->setPacketPollingParameters(&pollParams, 0);
     }
-    netif->setPacketPollingParameters(&pollParams, 0);
-
     /* Start output thread, statistics update and watchdog. */
     netif->startOutputThread();
 #else
+    setLinkStatus(kIONetworkLinkValid | kIONetworkLinkActive, mediumTable[mediumIndex], mediumSpeed, NULL);
+
     /* Restart txQueue, statistics updates and watchdog. */
     txQueue->start();
     
@@ -2048,6 +1999,8 @@ void AtherosE2200::setLinkDown()
     /* MAC reset causes all HW settings to be lost, restore all */
     alxConfigure();
     alx_enable_aspm(&hw, false, true);
+    pciDevice->setASPMState(this, kIOPCIELinkCtlL1);
+
     alxPostPhyLink();
     
     IOLog("Ethernet [AtherosE2200]: Link down on en%u\n", netif->getUnitNumber());
@@ -2065,11 +2018,11 @@ bool AtherosE2200::initPCIConfigSpace(IOPCIDevice *provider)
     bool result = false;
     
     /* Get vendor and device info. */
-    pciDeviceData.vendor = provider->configRead16(kIOPCIConfigVendorID);
-    pciDeviceData.device = provider->configRead16(kIOPCIConfigDeviceID);
-    pciDeviceData.subsystem_vendor = provider->configRead16(kIOPCIConfigSubSystemVendorID);
-    pciDeviceData.subsystem_device = provider->configRead16(kIOPCIConfigSubSystemID);
-    pciDeviceData.revision = provider->configRead8(kIOPCIConfigRevisionID);
+    pciDeviceData.vendor = provider->extendedConfigRead16(kIOPCIConfigVendorID);
+    pciDeviceData.device = provider->extendedConfigRead16(kIOPCIConfigDeviceID);
+    pciDeviceData.subsystem_vendor = provider->extendedConfigRead16(kIOPCIConfigSubSystemVendorID);
+    pciDeviceData.subsystem_device = provider->extendedConfigRead16(kIOPCIConfigSubSystemID);
+    pciDeviceData.revision = provider->extendedConfigRead8(kIOPCIConfigRevisionID);
 
     /* Identify the chipset. */
     if (!alxIdentifyChip())
@@ -2077,7 +2030,7 @@ bool AtherosE2200::initPCIConfigSpace(IOPCIDevice *provider)
     
     /* Setup power management. */
     if (provider->findPCICapability(kIOPCIPowerManagementCapability, &pmCapOffset)) {
-        pmCap = provider->configRead16(pmCapOffset + kIOPCIPMCapability);
+        pmCap = provider->extendedConfigRead16(pmCapOffset + kIOPCIPMCapability);
         DebugLog("Ethernet [AtherosE2200]: PCI power management capabilities: 0x%x.\n", pmCap);
         
         if (pmCap & (kPCIPMCPMESupportFromD3Cold | kPCIPMCPMESupportFromD3Hot)) {
@@ -2095,20 +2048,21 @@ bool AtherosE2200::initPCIConfigSpace(IOPCIDevice *provider)
     
     /* Get PCIe link information. */
     if (provider->findPCICapability(kIOPCIPCIExpressCapability, &pcieCapOffset)) {
-        pcieLinkCap = provider->configRead32(pcieCapOffset + kIOPCIELinkCapability);
-        pcieLinkCtl = provider->configRead16(pcieCapOffset + kIOPCIELinkControl);
+        pcieLinkCap = provider->extendedConfigRead32(pcieCapOffset + kIOPCIELinkCapability);
+        pcieLinkCtl = provider->extendedConfigRead16(pcieCapOffset + kIOPCIELinkControl);
+        DebugLog("Ethernet [AtherosE2200]: PCIe device capabilities: 0x%08x.\n", provider->extendedConfigRead32(pcieCapOffset + kIOPCIEDevCapability));
         DebugLog("Ethernet [AtherosE2200]: PCIe link capabilities: 0x%08x, link control: 0x%04x.\n", pcieLinkCap, pcieLinkCtl);
         
 #ifdef DEBUG
-        if (pcieLinkCtl & (kIOPCIELinkCtlASPM | kIOPCIELinkCtlClkReqEn))
+        if (pcieLinkCtl & kIOPCIELinkCtlASPM)
             IOLog("Ethernet [AtherosE2200]: PCIe ASPM enabled.\n");
 #endif  /* DEBUG */
         
     }
     /* Enable the device. */
-    cmdReg	= provider->configRead16(kIOPCIConfigCommand);
+    cmdReg	= provider->extendedConfigRead16(kIOPCIConfigCommand);
     cmdReg	|= kALXPCICommand;
-	provider->configWrite16(kIOPCIConfigCommand, cmdReg);
+	provider->extendedConfigWrite16(kIOPCIConfigCommand, cmdReg);
     
     baseMap = provider->mapDeviceMemoryWithRegister(kIOPCIConfigBaseAddress0, kIOMapInhibitCache);
     
@@ -2132,11 +2086,11 @@ bool AtherosE2200::alxResetPCIe()
     bool result = false;
 
 	/* Workaround for PCI problem when BIOS sets MMRBC incorrectly. */
-	val16 = pciDevice->configRead16(kIOPCIConfigCommand);
+	val16 = pciDevice->extendedConfigRead16(kIOPCIConfigCommand);
     
 	if (!(val16 & kALXPCICommand) || (val16 & kIOPCICommandInterruptDisable)) {
 		val16 = ((val16 | kALXPCICommand) & ~kIOPCICommandInterruptDisable);
-		pciDevice->configWrite16(kIOPCIConfigCommand, val16);
+		pciDevice->extendedConfigWrite16(kIOPCIConfigCommand, val16);
         DebugLog("Ethernet [AtherosE2200]: Restored PCI command register.\n");
 	}
     /* Check if the NIC has been disabled by the BIOS. */
@@ -2171,6 +2125,7 @@ bool AtherosE2200::alxResetPCIe()
 	}
 	/* ASPM setting */
 	alx_enable_aspm(&hw, true, true);
+    pciDevice->setASPMState(this, kIOPCIELinkCtlL0s | kIOPCIELinkCtlL1);
     
     result = true;
 	IODelay(10);
@@ -2190,12 +2145,12 @@ IOReturn AtherosE2200::setPowerStateWakeAction(OSObject *owner, void *arg1, void
         dev = ethCtlr->pciDevice;
         offset = ethCtlr->pciPMCtrlOffset;
         
-        val16 = dev->configRead16(offset);
+        val16 = dev->extendedConfigRead16(offset);
         
         val16 &= ~(kPCIPMCSPowerStateMask | kPCIPMCSPMEStatus | kPCIPMCSPMEEnable);
         val16 |= kPCIPMCSPowerStateD0;
         
-        dev->configWrite16(offset, val16);
+        dev->extendedConfigWrite16(offset, val16);
     }
     return kIOReturnSuccess;
 }
@@ -2211,7 +2166,7 @@ IOReturn AtherosE2200::setPowerStateSleepAction(OSObject *owner, void *arg1, voi
         dev = ethCtlr->pciDevice;
         offset = ethCtlr->pciPMCtrlOffset;
 
-        val16 = dev->configRead16(offset);
+        val16 = dev->extendedConfigRead16(offset);
         
         val16 &= ~(kPCIPMCSPowerStateMask | kPCIPMCSPMEStatus | kPCIPMCSPMEEnable);
         
@@ -2220,7 +2175,7 @@ IOReturn AtherosE2200::setPowerStateSleepAction(OSObject *owner, void *arg1, voi
         else
             val16 |= kPCIPMCSPowerStateD3;
         
-        dev->configWrite16(offset, val16);
+        dev->extendedConfigWrite16(offset, val16);
     }
     return kIOReturnSuccess;
 }
@@ -2323,6 +2278,10 @@ bool AtherosE2200::alxStart(UInt32 maxIntrRate)
     
     eeeAdv = eeeCap;
     
+#ifdef __PRIVATE_SPI__
+    linkOpts = 0;
+#endif /* __PRIVATE_SPI__ */
+
     if (!alxResetPCIe())
         goto done;
     
@@ -2372,15 +2331,37 @@ done:
 
 void AtherosE2200::alxEnable()
 {
+    const IONetworkMedium *selectedMedium = getSelectedMedium();
     UInt32 msiControl = ((hw.imt >> 1) << ALX_MSI_RETRANS_TM_SHIFT);
     
+    if (!selectedMedium) {
+        DebugLog("Ethernet [AtherosE2200]: No medium selected. Falling back to autonegotiation.\n");
+        selectedMedium = mediumTable[MEDIUM_INDEX_AUTO];
+        setCurrentMedium(selectedMedium);
+    }
+
+#ifdef __PRIVATE_SPI__
+    /* Check if we re waking up from sleep with WoL enabled and still have a valid link. */
+    if (!linkOpts || alxReadPhyLink() || (hw.link_speed == SPEED_UNKNOWN)) {
+        linkOpts = 0;
+        setLinkStatus(kIONetworkLinkValid);
+    }
+    polling = false;
+#else
+    setLinkStatus(kIONetworkLinkValid);
+#endif /* __PRIVATE_SPI__ */
+
+    hw.link_speed = SPEED_UNKNOWN;
+    hw.duplex = DUPLEX_UNKNOWN;
+
+    alxSpeedDuplexForMedium(selectedMedium);
+    alxSetupSpeedDuplex(hw.adv_cfg, eeeAdv, hw.flowctrl);
+
     alxResetPCIe();
     alxResetPhy();
     alx_reset_mac(&hw);
 	alxConfigure();
     
-    polling = false;
-
 	if (useMSI) {
 		alxWriteMem32(ALX_MSI_RETRANS_TIMER, msiControl | ALX_MSI_MASK_SEL_LINE);
         
@@ -2392,6 +2373,7 @@ void AtherosE2200::alxEnable()
         alxWriteMem32(ALX_MSI_RETRANS_TIMER, 0);
     }
     alx_enable_aspm(&hw, false, true);
+    pciDevice->setASPMState(this, kIOPCIELinkCtlL1);
 
     /* clear old interrupts */
 	alxWriteMem32(ALX_ISR, ~(UInt32)ALX_ISR_DIS);
@@ -2402,20 +2384,27 @@ void AtherosE2200::alxEnable()
 
 int AtherosE2200::alxDisable()
 {
-    int error, speed;
-    UInt8 duplex;
+    UInt32 status = kIONetworkLinkValid;
+    int error;
+    int speed = 0;
+    UInt8 duplex = 0;
 
     alxDisableIRQ();
     
     hw.link_speed = SPEED_UNKNOWN;
     hw.duplex = DUPLEX_UNKNOWN;
-    polling = false;
     
+#ifdef __PRIVATE_SPI__
+    polling = false;
+    linkOpts = 0;
+#endif /* __PRIVATE_SPI__ */
+
 	alx_reset_mac(&hw);
     
 	/* disable l0s/l1 */
 	alx_enable_aspm(&hw, false, false);
-    
+    pciDevice->setASPMState(this, 0);
+
     if (hw.sleep_ctrl & ALX_SLEEP_ACTIVE) {
         error = alxSelectPowersavingSpeed(&speed, &duplex);
         
@@ -2441,10 +2430,19 @@ int AtherosE2200::alxDisable()
             DebugLog("Ethernet [AtherosE2200]: alx_config_wol() failed.\n");
             goto done;
         }
+#ifdef __PRIVATE_SPI__
+        linkOpts = kIONetworkLinkNoNetworkChange;
+        status |= linkOpts;
+#endif /* __PRIVATE_SPI__ */
     }
     error = 0;
     
 done:
+    if (linkUp) {
+        linkUp = false;
+        setLinkStatus(status);
+        IOLog("Ethernet [AtherosE2200]: Link down on en%u\n", netif->getUnitNumber());
+    }
     return error;
 }
 
@@ -2480,7 +2478,8 @@ void AtherosE2200::alxRestart()
 
 	/* disable l0s/l1 */
 	alx_enable_aspm(&hw, false, false);
-    
+    pciDevice->setASPMState(this, 0);
+
     txClearDescriptors();
     rxNextDescIndex = 0;
     deadlockWarn = 0;
@@ -2547,7 +2546,7 @@ void AtherosE2200::alxConfigureBasic()
     
 	alxWriteMem32(ALX_TXQ1, val | ALX_TXQ1_ERRLGPKT_DROP_EN);
 
-    val16 = pciDevice->configRead16(pcieCapOffset + kIOPCIEDeviceControl);
+    val16 = pciDevice->extendedConfigRead16(pcieCapOffset + kIOPCIEDeviceControl);
     maxPayload = ((val16 & kIOPCIEDevCtlReadQ) >> 12);
 	/*
 	 * if BIOS had changed the default dma read max length,
@@ -2556,7 +2555,7 @@ void AtherosE2200::alxConfigureBasic()
 	if (maxPayload < ALX_DEV_CTRL_MAXRRS_MIN) {
         val16 &= ~kIOPCIEDevCtlReadQ;
         val16 |= (ALX_DEV_CTRL_MAXRRS_MIN << 12);
-        pciDevice->configWrite16(pcieCapOffset + kIOPCIEDeviceControl, val16);
+        pciDevice->extendedConfigWrite16(pcieCapOffset + kIOPCIEDeviceControl, val16);
         DebugLog("Ethernet [AtherosE2200]: Restore dma read max length: 0x%x.\n", val16);
     }
 	val = ALX_TXQ_TPD_BURSTPREF_DEF << ALX_TXQ0_TPD_BURSTPREF_SHIFT | ALX_TXQ0_MODE_ENHANCE | ALX_TXQ0_LSO_8023_EN |    ALX_TXQ0_SUPT_IPOPT | ALX_TXQ_TXF_BURST_PREF_DEF << ALX_TXQ0_TXF_BURST_PREF_SHIFT;
@@ -3118,6 +3117,73 @@ int AtherosE2200::alxSelectPowersavingSpeed(int *speed, UInt8 *duplex)
         return -ETIMEDOUT;
     
     return 0;
+}
+
+void AtherosE2200::alxSpeedDuplexForMedium(const IONetworkMedium *medium)
+{
+    hw.flowctrl = (ALX_FC_ANEG | ALX_FC_RX | ALX_FC_TX);
+    eeeAdv = 0;
+    
+    switch (medium->getIndex()) {
+        case MEDIUM_INDEX_10HD:
+            hw.adv_cfg = (ADVERTISED_10baseT_Half);
+            break;
+            
+        case MEDIUM_INDEX_10FD:
+            hw.adv_cfg = (ADVERTISED_10baseT_Full);
+            break;
+            
+        case MEDIUM_INDEX_100HD:
+            hw.adv_cfg = (ADVERTISED_100baseT_Half);
+            break;
+            
+        case MEDIUM_INDEX_100FD:
+            hw.adv_cfg = (ADVERTISED_100baseT_Full);
+            break;
+            
+        case MEDIUM_INDEX_100FDFC:
+            hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_100baseT_Full);
+            break;
+            
+        case MEDIUM_INDEX_100FDEEE:
+            hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_100baseT_Full);
+            hw.flowctrl = ALX_FC_ANEG;
+            eeeAdv = eeeCap;
+            break;
+            
+        case MEDIUM_INDEX_100FDFCEEE:
+            hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_100baseT_Full);
+            eeeAdv = eeeCap;
+            break;
+            
+        case MEDIUM_INDEX_1000FD:
+            hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_1000baseT_Full);
+            hw.flowctrl = ALX_FC_ANEG;
+            break;
+            
+        case MEDIUM_INDEX_1000FDFC:
+            hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_1000baseT_Full);
+            break;
+            
+        case MEDIUM_INDEX_1000FDEEE:
+            hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_1000baseT_Full);
+            hw.flowctrl = ALX_FC_ANEG;
+            eeeAdv = eeeCap;
+            break;
+            
+        case MEDIUM_INDEX_1000FDFCEEE:
+            hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_1000baseT_Full);
+            eeeAdv = eeeCap;
+            break;
+            
+        default:    /* MEDIUM_INDEX_AUTO */
+            hw.adv_cfg = (ADVERTISED_Autoneg | ADVERTISED_10baseT_Half | ADVERTISED_10baseT_Full | ADVERTISED_100baseT_Full | ADVERTISED_100baseT_Half);
+            eeeAdv = eeeCap;
+            
+            if (gbCapable)
+                hw.adv_cfg |= ADVERTISED_1000baseT_Full;
+            break;
+    }
 }
 
 #pragma mark --- timer action methods ---

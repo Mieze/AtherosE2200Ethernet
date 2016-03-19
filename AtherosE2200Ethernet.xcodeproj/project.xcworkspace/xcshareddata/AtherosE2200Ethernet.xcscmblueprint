@@ -1,0 +1,37 @@
+{
+  "DVTSourceControlWorkspaceBlueprintPrimaryRemoteRepositoryKey" : "CDCA2184861B0BBA9C5ECB0C5CE4459094A5CB2E",
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyRepositoryLocationsKey" : {
+
+  },
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyStatesKey" : {
+    "CDCA2184861B0BBA9C5ECB0C5CE4459094A5CB2E" : 0,
+    "322B76FC62564D70D3D2B79682113A4F1191D2DD" : 0,
+    "52FD44A8D7C2885B44C325DC0C12115B6E4CC996" : 0
+  },
+  "DVTSourceControlWorkspaceBlueprintIdentifierKey" : "EF5DE8B8-F8CD-42F3-BFAD-A74E560D7A6D",
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyPathsKey" : {
+    "CDCA2184861B0BBA9C5ECB0C5CE4459094A5CB2E" : "AtherosE2200Ethernet",
+    "322B76FC62564D70D3D2B79682113A4F1191D2DD" : "IntelMausiEthernet",
+    "52FD44A8D7C2885B44C325DC0C12115B6E4CC996" : "RealtekRTL8111"
+  },
+  "DVTSourceControlWorkspaceBlueprintNameKey" : "AtherosE2200Ethernet",
+  "DVTSourceControlWorkspaceBlueprintVersion" : 204,
+  "DVTSourceControlWorkspaceBlueprintRelativePathToProjectKey" : "AtherosE2200Ethernet.xcodeproj",
+  "DVTSourceControlWorkspaceBlueprintRemoteRepositoriesKey" : [
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "https:\/\/github.com\/Mieze\/IntelMausiEthernet.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "322B76FC62564D70D3D2B79682113A4F1191D2DD"
+    },
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "https:\/\/github.com\/Mieze\/RTL8111_driver_for_OS_X.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "52FD44A8D7C2885B44C325DC0C12115B6E4CC996"
+    },
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "https:\/\/github.com\/Mieze\/AtherosE2200Ethernet.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "CDCA2184861B0BBA9C5ECB0C5CE4459094A5CB2E"
+    }
+  ]
+}

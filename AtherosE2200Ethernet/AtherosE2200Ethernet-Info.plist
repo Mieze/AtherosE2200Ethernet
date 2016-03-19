@@ -46,6 +46,8 @@
 			<true/>
 			<key>maxIntrRate</key>
 			<integer>5500</integer>
+			<key>rxPolling</key>
+			<false/>
 		</dict>
 	</dict>
 	<key>NSHumanReadableCopyright</key>
