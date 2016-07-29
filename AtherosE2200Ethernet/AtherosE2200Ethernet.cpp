@@ -570,7 +570,7 @@ IOReturn AtherosE2200::outputStart(IONetworkInterface *interface, IOOptionBits o
         if (tsoFlags & MBUF_TSO_IPV6) {
             desc = &txDescArray[index];
             
-            desc->vlanTag = OSSwapHostToLittleInt16(vlanTag);
+            desc->vlanTag = OSSwapHostToBigInt16(vlanTag);
             desc->word1 = OSSwapHostToLittleInt32(cmd);
             desc->adrl.l.pktLength = OSSwapHostToLittleInt32(totalLen);
             
@@ -693,7 +693,7 @@ UInt32 AtherosE2200::outputPacket(mbuf_t m, void *param)
     if (tsoFlags & MBUF_TSO_IPV6) {
         desc = &txDescArray[index];
 
-        desc->vlanTag = OSSwapHostToLittleInt16(vlanTag);
+        desc->vlanTag = OSSwapHostToBigInt16(vlanTag);
         desc->word1 = OSSwapHostToLittleInt32(cmd);
         desc->adrl.l.pktLength = OSSwapHostToLittleInt32(totalLen);
         
@@ -1028,23 +1028,22 @@ IOReturn AtherosE2200::getPacketFilters(const OSSymbol *group, UInt32 *filters) 
 /* There seems to be a hardware bug which prevents the Killer and AR816x/AR817x
  * NICs from changing their MAC address. Writes to the MAC adddress registers
  * result in a messed up address register effectively killing unicast packet
- * reception until the next reset. As a workaround, we refuse to change the
- * NIC's MAC address.
+ * reception until the next reset. As a workaround, we acknowledge the request
+ * without performing any action as refusing it would break LACP.
  */
 IOReturn AtherosE2200::setHardwareAddress(const IOEthernetAddress *addr)
 {
-    IOReturn result = kIOReturnError;
+    IOReturn result = kIOReturnSuccess;
     
     DebugLog("setHardwareAddress() ===>\n");
-    
-    if (addr && ether_addr_equal(&addr->bytes[0], &origMacAddr.bytes[0])) {
 /*
+    if (addr && ether_addr_equal(&addr->bytes[0], &origMacAddr.bytes[0])) {
         memcpy(&currMacAddr.bytes[0], &addr->bytes[0], kIOEthernetAddressSize);
         alxSetHardwareAddress(addr);
-*/
+
         result = kIOReturnSuccess;
     }
-    
+*/
     DebugLog("setHardwareAddress() <===\n");
     
     return result;
@@ -1517,7 +1516,7 @@ UInt32 AtherosE2200::rxInterrupt(IONetworkInterface *interface, uint32_t maxCoun
         pktSize = (status3 & RRD_PKTLEN_MASK) - kIOEthernetCRCSize;
         index = (status0 >> RRD_SI_SHIFT) & RRD_SI_MASK;
         numBufs = (status0 >> RRD_NOR_SHIFT) & 0x000F;
-        vlanTag = (status3 & RRD_VLTAGGED) ? OSSwapInt16(status2 & RRD_VLTAG_MASK) : 0;
+        vlanTag = (status3 & RRD_VLTAGGED) ? OSSwapBigToHostInt16(status2 & RRD_VLTAG_MASK) : 0;
         bufPkt = rxMbufArray[index];
         
         //DebugLog("Ethernet [AtherosE2200]: Packet with index=%u, numBufs=%u, pktSize=%u, errors=0x%x\n", index, numBufs, pktSize, errors);
@@ -1625,7 +1624,7 @@ void AtherosE2200::rxInterrupt()
         pktSize = (status3 & RRD_PKTLEN_MASK) - kIOEthernetCRCSize;
         index = (status0 >> RRD_SI_SHIFT) & RRD_SI_MASK;
         numBufs = (status0 >> RRD_NOR_SHIFT) & 0x000F;
-        vlanTag = (status3 & RRD_VLTAGGED) ? OSSwapInt16(status2 & RRD_VLTAG_MASK) : 0;
+        vlanTag = (status3 & RRD_VLTAGGED) ? OSSwapBigToHostInt16(status2 & RRD_VLTAG_MASK) : 0;
         bufPkt = rxMbufArray[index];
 
         //DebugLog("Ethernet [AtherosE2200]: Packet with index=%u, numBufs=%u, pktSize=%u, errors=0x%x\n", index, numBufs, pktSize, errors);
