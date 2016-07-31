@@ -736,12 +736,19 @@ error:
 
 #endif /* __PRIVATE_SPI__ */
 
+/* 
+ * We are enforcing alignment by requesting packets of excatly 2048 bytes which is
+ * the size of a cluster so that all packets will be 2k aligned. As the kernel adds
+ * aligment constraints to the requested size we have to claim that there are no
+ * aligment constraints in order to perfectly match the requested packet size.
+ */
+
 void AtherosE2200::getPacketBufferConstraints(IOPacketBufferConstraints *constraints) const
 {
     DebugLog("getPacketBufferConstraints() ===>\n");
     
-	constraints->alignStart = kIOPacketBufferAlign8;
-	constraints->alignLength = kIOPacketBufferAlign8;
+	constraints->alignStart = kIOPacketBufferAlign1;
+	constraints->alignLength = kIOPacketBufferAlign1;
     
     DebugLog("getPacketBufferConstraints() <===\n");
 }
@@ -1096,6 +1103,51 @@ done:
     return result;
 }
 
+IOReturn AtherosE2200::getMaxPacketSize(UInt32 * maxSize) const
+{
+    DebugLog("getMaxPacketSize() ===>\n");
+
+    *maxSize = kMaxPacketSize;
+    
+    DebugLog("getMaxPacketSize() <===\n");
+
+    return kIOReturnSuccess;
+}
+
+IOReturn AtherosE2200::setMaxPacketSize(UInt32 maxSize)
+{
+    IOReturn result = kIOReturnError;
+    UInt32 mask = 0;
+    UInt32 caps = 0;
+    
+    DebugLog("setMaxPacketSize() ===>\n");
+    
+    if (maxSize <= kMaxPacketSize) {
+        hw.mtu = maxSize - (ETH_HLEN + ETH_FCS_LEN);
+        
+        if(enableTSO4)
+            mask |= IFNET_TSO_IPV4;
+        
+        if(enableTSO6)
+            mask |= IFNET_TSO_IPV6;
+        
+        caps = (hw.mtu > ALX_MAX_TSO_PKT_SIZE) ? 0 : mask;
+        ifnet_set_capabilities_enabled(netif->getIfnet(), caps, mask);
+        
+        DebugLog("Ethernet [AtherosE2200]: maxSize: %u, mtu: %u\n", maxSize, hw.mtu);
+        
+        /* Force reinitialization. */
+        setLinkDown();
+        alxSetupSpeedDuplex(hw.adv_cfg, eeeAdv, hw.flowctrl);
+        
+        result = kIOReturnSuccess;
+    }
+    
+    DebugLog("setMaxPacketSize() <===\n");
+    
+    return result;
+}
+
 #pragma mark --- rx poll methods ---
 
 #ifdef __PRIVATE_SPI__
@@ -1263,7 +1315,6 @@ bool AtherosE2200::setupDMADescriptors()
     IOPhysicalSegment rxSegment;
     QCARxTxDescArray *descArray;
     UInt32 i;
-    //UInt32 opts1;
     bool result = false;
     
     /* Create descriptor arrays. */
@@ -1330,7 +1381,7 @@ bool AtherosE2200::setupDMADescriptors()
             goto error4;
         }
         rxMbufArray[i] = m;
-        
+
         if (rxMbufCursor->getPhysicalSegments(m, &rxSegment, 1) != 1) {
             IOLog("Ethernet [AtherosE2200]: getPhysicalSegments() for receive buffer failed.\n");
             goto error4;
@@ -1342,7 +1393,7 @@ bool AtherosE2200::setupDMADescriptors()
      */
     for (i = 0; i < kRxNumSpareMbufs; i++)
         spareMbuf[i] = allocatePacket(kRxBufferPktSize);
-    
+
     for (i = 0; i < kRxNumSpareMbufs; i++) {
         if (spareMbuf[i])
             freePacket(spareMbuf[i]);
@@ -1500,10 +1551,14 @@ UInt32 AtherosE2200::rxInterrupt(IONetworkInterface *interface, uint32_t maxCoun
     IOPhysicalSegment rxSegment;
     QCARxRetDesc *desc = &rxRetDescArray[rxNextDescIndex];
     mbuf_t bufPkt, newPkt;
+    mbuf_t extraPkt, tailPkt;
     UInt32 status0, status2, status3;
     UInt32 pktSize;
     UInt32 validMask;
-    UInt16 index, numBufs;
+    UInt32 n;
+    SInt32 extraSize;
+    UInt16 index, lastIndex;
+    UInt16 extraBufs;
     UInt16 vlanTag;
     UInt16 goodPkts = 0;
     bool replaced;
@@ -1514,27 +1569,22 @@ UInt32 AtherosE2200::rxInterrupt(IONetworkInterface *interface, uint32_t maxCoun
         status0 = OSSwapLittleToHostInt32(desc->word0);
         status2 = OSSwapLittleToHostInt32(desc->word2);
         pktSize = (status3 & RRD_PKTLEN_MASK) - kIOEthernetCRCSize;
+        extraBufs = (((status0 >> RRD_NOR_SHIFT) & 0x000F) - 1);
         index = (status0 >> RRD_SI_SHIFT) & RRD_SI_MASK;
-        numBufs = (status0 >> RRD_NOR_SHIFT) & 0x000F;
+        lastIndex = (index + extraBufs) & kRxDescMask;
         vlanTag = (status3 & RRD_VLTAGGED) ? OSSwapBigToHostInt16(status2 & RRD_VLTAG_MASK) : 0;
         bufPkt = rxMbufArray[index];
-        
+        extraSize = pktSize - kRxBufferPktSize;
+
         //DebugLog("Ethernet [AtherosE2200]: Packet with index=%u, numBufs=%u, pktSize=%u, errors=0x%x\n", index, numBufs, pktSize, errors);
         
-        /* As we don't support jumbo frames we consider fragmented packets as errors. */
-        if (numBufs > 1) {
-            DebugLog("Ethernet [AtherosE2200]: Fragmented packet.\n");
-            etherStats->dot3StatsEntry.frameTooLongs++;
-            index =  (index + (numBufs - 1)) & kRxDescMask;
-            goto nextDesc;
-        }
         /* Skip bad packet. */
         if (status3 & RRD_ERR_MASK) {
-            DebugLog("Ethernet [AtherosE2200]: Bad packet.\n");
+            DebugLog("Ethernet [AtherosE2200]: Bad packet. error: 0x%x\n", (status3 & RRD_ERR_MASK) >> RRD_ERR_FCS_SHIFT);
             etherStats->dot3StatsEntry.internalMacReceiveErrors++;
             goto nextDesc;
         }
-        newPkt = replaceOrCopyPacket(&bufPkt, pktSize, &replaced);
+        tailPkt = newPkt = replaceOrCopyPacket(&bufPkt, pktSize, &replaced);
         
         if (!newPkt) {
             /* Allocation of a new packet failed so that we must leave the original packet in place. */
@@ -1544,7 +1594,9 @@ UInt32 AtherosE2200::rxInterrupt(IONetworkInterface *interface, uint32_t maxCoun
         }
         /* If the packet was replaced we have to update the free descriptor's buffer address. */
         if (replaced) {
-            if (rxMbufCursor->getPhysicalSegments(bufPkt, &rxSegment, 1) != 1) {
+            n = rxMbufCursor->getPhysicalSegments(bufPkt, &rxSegment, 1);
+            
+            if ((n != 1) || (rxSegment.location & 0x07ff)) {
                 DebugLog("Ethernet [AtherosE2200]: getPhysicalSegments() failed.\n");
                 etherStats->dot3RxExtraEntry.resourceErrors++;
                 freePacket(bufPkt);
@@ -1552,6 +1604,36 @@ UInt32 AtherosE2200::rxInterrupt(IONetworkInterface *interface, uint32_t maxCoun
             }
             rxMbufArray[index] = bufPkt;
             rxFreeDescArray[index].addr = OSSwapHostToLittleInt64(rxSegment.location);
+        }
+        while (extraSize > 0) {
+            ++index &= kRxDescMask;
+            bufPkt = rxMbufArray[index];
+            extraPkt = replacePacket(&bufPkt, kRxBufferPktSize);
+            
+            if (!extraPkt) {
+                /* Allocation of a new packet failed so that we must leave the original packet in place. */
+                DebugLog("Ethernet [AtherosE2200]: replacePacket() failed.\n");
+                etherStats->dot3RxExtraEntry.resourceErrors++;
+                freePacket(newPkt);
+                goto nextDesc;
+            }
+            mbuf_setflags_mask(extraPkt, 0, MBUF_PKTHDR);
+            mbuf_setlen(extraPkt, (extraSize > kRxBufferPktSize) ? kRxBufferPktSize : extraSize);
+            mbuf_setnext(tailPkt, extraPkt);
+            
+            n = rxMbufCursor->getPhysicalSegments(bufPkt, &rxSegment, 1);
+
+            if ((n != 1) || (rxSegment.location & 0x07ff)) {
+                DebugLog("Ethernet [AtherosE2200]: getPhysicalSegments() failed for jumbo frame.\n");
+                etherStats->dot3RxExtraEntry.resourceErrors++;
+                freePacket(newPkt);
+                goto nextDesc;
+            }
+            rxMbufArray[index] = bufPkt;
+            rxFreeDescArray[index].addr = OSSwapHostToLittleInt64(rxSegment.location);
+            
+            extraSize -= kRxBufferPktSize;
+            tailPkt = extraPkt;
         }
         switch (getProtocolID(status2)) {
             case RRD_PID_IPV4:
@@ -1585,7 +1667,7 @@ UInt32 AtherosE2200::rxInterrupt(IONetworkInterface *interface, uint32_t maxCoun
             setVlanTag(newPkt, vlanTag);
         
         mbuf_pkthdr_setlen(newPkt, pktSize);
-        mbuf_setlen(newPkt, pktSize);
+        mbuf_setlen(newPkt, (pktSize > kRxBufferPktSize) ? kRxBufferPktSize : pktSize);
         interface->enqueueInputPacket(newPkt, pollQueue);
         goodPkts++;
         
@@ -1596,7 +1678,7 @@ UInt32 AtherosE2200::rxInterrupt(IONetworkInterface *interface, uint32_t maxCoun
         ++rxNextDescIndex &= kRxDescMask;
         desc = &rxRetDescArray[rxNextDescIndex];
         
-        alxWriteMem16(ALX_RFD_PIDX, index);
+        alxWriteMem16(ALX_RFD_PIDX, lastIndex);
     }
     return goodPkts;
 }
@@ -1608,12 +1690,16 @@ void AtherosE2200::rxInterrupt()
     IOPhysicalSegment rxSegment;
     QCARxRetDesc *desc = &rxRetDescArray[rxNextDescIndex];
     mbuf_t bufPkt, newPkt;
+    mbuf_t extraPkt, tailPkt;
     UInt32 status0, status2, status3;
     UInt32 pktSize;
     UInt32 validMask;
-    UInt16 goodPkts = 0;
-    UInt16 index, numBufs;
+    UInt32 n;
+    SInt32 extraSize;
+    UInt16 index, lastIndex;
+    UInt16 extraBufs;
     UInt16 vlanTag;
+    UInt16 goodPkts = 0;
     bool replaced;
     
     //DebugLog("Ethernet [AtherosE2200]: rxInterrupt()\n");
@@ -1622,27 +1708,22 @@ void AtherosE2200::rxInterrupt()
         status0 = OSSwapLittleToHostInt32(desc->word0);
         status2 = OSSwapLittleToHostInt32(desc->word2);
         pktSize = (status3 & RRD_PKTLEN_MASK) - kIOEthernetCRCSize;
+        extraBufs = (((status0 >> RRD_NOR_SHIFT) & 0x000F) - 1);
         index = (status0 >> RRD_SI_SHIFT) & RRD_SI_MASK;
-        numBufs = (status0 >> RRD_NOR_SHIFT) & 0x000F;
+        lastIndex = (index + extraBufs) & kRxDescMask;
         vlanTag = (status3 & RRD_VLTAGGED) ? OSSwapBigToHostInt16(status2 & RRD_VLTAG_MASK) : 0;
         bufPkt = rxMbufArray[index];
+        extraSize = pktSize - kRxBufferPktSize;
 
         //DebugLog("Ethernet [AtherosE2200]: Packet with index=%u, numBufs=%u, pktSize=%u, errors=0x%x\n", index, numBufs, pktSize, errors);
 
-        /* As we don't support jumbo frames we consider fragmented packets as errors. */
-        if (numBufs > 1) {
-            DebugLog("Ethernet [AtherosE2200]: Fragmented packet.\n");
-            etherStats->dot3StatsEntry.frameTooLongs++;
-            index =  (index + (numBufs - 1)) & kRxDescMask;
-            goto nextDesc;
-        }
         /* Skip bad packet. */
         if (status3 & RRD_ERR_MASK) {
-            DebugLog("Ethernet [AtherosE2200]: Bad packet.\n");
+            DebugLog("Ethernet [AtherosE2200]: Bad packet. error: 0x%x\n", (status3 & RRD_ERR_MASK) >> RRD_ERR_FCS_SHIFT);
             etherStats->dot3StatsEntry.internalMacReceiveErrors++;
             goto nextDesc;
         }
-        newPkt = replaceOrCopyPacket(&bufPkt, pktSize, &replaced);
+        tailPkt = newPkt = replaceOrCopyPacket(&bufPkt, pktSize, &replaced);
         
         if (!newPkt) {
             /* Allocation of a new packet failed so that we must leave the original packet in place. */
@@ -1660,6 +1741,36 @@ void AtherosE2200::rxInterrupt()
             }
             rxMbufArray[index] = bufPkt;
             rxFreeDescArray[index].addr = OSSwapHostToLittleInt64(rxSegment.location);
+        }
+        while (extraSize > 0) {
+            ++index &= kRxDescMask;
+            bufPkt = rxMbufArray[index];
+            extraPkt = replacePacket(&bufPkt, kRxBufferPktSize);
+            
+            if (!extraPkt) {
+                /* Allocation of a new packet failed so that we must leave the original packet in place. */
+                DebugLog("Ethernet [AtherosE2200]: replacePacket() failed.\n");
+                etherStats->dot3RxExtraEntry.resourceErrors++;
+                freePacket(newPkt);
+                goto nextDesc;
+            }
+            mbuf_setflags_mask(extraPkt, 0, MBUF_PKTHDR);
+            mbuf_setlen(extraPkt, (extraSize > kRxBufferPktSize) ? kRxBufferPktSize : extraSize);
+            mbuf_setnext(tailPkt, extraPkt);
+            
+            n = rxMbufCursor->getPhysicalSegments(bufPkt, &rxSegment, 1);
+            
+            if ((n != 1) || (rxSegment.location & 0x07ff)) {
+                DebugLog("Ethernet [AtherosE2200]: getPhysicalSegments() failed for jumbo frame.\n");
+                etherStats->dot3RxExtraEntry.resourceErrors++;
+                freePacket(newPkt);
+                goto nextDesc;
+            }
+            rxMbufArray[index] = bufPkt;
+            rxFreeDescArray[index].addr = OSSwapHostToLittleInt64(rxSegment.location);
+            
+            extraSize -= kRxBufferPktSize;
+            tailPkt = extraPkt;
         }
         switch (getProtocolID(status2)) {
             case RRD_PID_IPV4:
@@ -1692,7 +1803,9 @@ void AtherosE2200::rxInterrupt()
         if (vlanTag)
             setVlanTag(newPkt, vlanTag);
         
-        netif->inputPacket(newPkt, pktSize, IONetworkInterface::kInputOptionQueuePacket);
+        mbuf_pkthdr_setlen(newPkt, pktSize);
+        mbuf_setlen(newPkt, (pktSize > kRxBufferPktSize) ? kRxBufferPktSize : pktSize);
+        netif->inputPacket(newPkt, 0, IONetworkInterface::kInputOptionQueuePacket);
         goodPkts++;
         
         /* Finally update the descriptor and get the next one to examine. */
@@ -1702,7 +1815,7 @@ nextDesc:
         ++rxNextDescIndex &= kRxDescMask;
         desc = &rxRetDescArray[rxNextDescIndex];
         
-        alxWriteMem16(ALX_RFD_PIDX, index);
+        alxWriteMem16(ALX_RFD_PIDX, lastIndex);
     }
     if (goodPkts) {
         //DebugLog("Ethernet [AtherosE2200]: Received %u good packets.\n", goodPkts);
@@ -2530,18 +2643,18 @@ void AtherosE2200::alxConfigureBasic()
 	alxWriteMem32(ALX_TINT_TPD_THRSHLD, hw.ith_tpd);
 	alxWriteMem32(ALX_TINT_TIMER, hw.imt);
     
-	rawMTU = hw.mtu + ETHER_HDR_LEN;
-	alxWriteMem32(ALX_MTU, rawMTU + 8);
+	rawMTU = ALX_RAW_MTU(hw.mtu);
+	alxWriteMem32(ALX_MTU, rawMTU);
     
-	if (rawMTU > ALX_MTU_JUMBO_TH)
-		hw.rx_ctrl &= ~ALX_MAC_CTRL_FAST_PAUSE;
+    if (rawMTU > (ALX_MTU_JUMBO_TH + ETH_FCS_LEN + VLAN_HLEN))
+        hw.rx_ctrl &= ~ALX_MAC_CTRL_FAST_PAUSE;
     else
         hw.rx_ctrl |= ALX_MAC_CTRL_FAST_PAUSE;
 
-	if ((rawMTU + 8) < ALX_TXQ1_JUMBO_TSO_TH)
-		val = (rawMTU + 8 + 7) >> 3;
-	else
-		val = ALX_TXQ1_JUMBO_TSO_TH >> 3;
+    if (rawMTU < ALX_TXQ1_JUMBO_TSO_TH)
+        val = (rawMTU + 7) >> 3;
+    else
+        val = ALX_TXQ1_JUMBO_TSO_TH >> 3;
     
 	alxWriteMem32(ALX_TXQ1, val | ALX_TXQ1_ERRLGPKT_DROP_EN);
 

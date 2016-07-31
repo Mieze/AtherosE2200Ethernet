@@ -160,11 +160,14 @@ typedef struct QCARxTxDescArray {
     QCARxFreeDesc rxFreeDesc[kNumRxDesc];
 } QCARxTxDescArray;
 
-/* This is the receive buffer size (must be large enough to hold a packet). */
-#define kRxBufferPktSize 2000
+/* This is the receive buffer size (must be exactly 2048 bytes to match a cluster). */
+#define kRxBufferPktSize 2048
 #define kRxNumSpareMbufs 100
 #define kMCFilterLimit 32
 #define kMaxRxQueques 1
+#define kMaxMtu 9000
+#define kMaxPacketSize (kMaxMtu + ETH_HLEN + ETH_FCS_LEN)
+#define kMaxTsoMtu 7000
 
 /* statitics timer period in ms. */
 #define kTimeoutMS 1000
@@ -281,7 +284,8 @@ public:
 	virtual IOReturn setMulticastMode(bool active);
 	virtual IOReturn setMulticastList(IOEthernetAddress *addrs, UInt32 count);
 	virtual IOReturn getChecksumSupport(UInt32 *checksumMask, UInt32 checksumFamily, bool isOutput);
-	virtual IOReturn getMinPacketSize(UInt32 *minSize) const;
+    virtual IOReturn getMaxPacketSize(UInt32 * maxSize) const;
+    virtual IOReturn setMaxPacketSize(UInt32 maxSize);
     virtual IOReturn setWakeOnMagicPacket(bool active);
     virtual IOReturn getPacketFilters(const OSSymbol *group, UInt32 *filters) const;
     

@@ -272,6 +272,10 @@ struct pci_dev {
 
 #define dev_err(x,y,z)
 
+#define VLAN_HLEN       4   /* The additional bytes required by VLAN
+                             * (in addition to the Ethernet header)
+                             */
+
 /**
  * is_zero_ether_addr - Determine if give Ethernet address is all zeros.
  * @addr: Pointer to a six-byte array containing the Ethernet address
