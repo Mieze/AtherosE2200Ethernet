@@ -33,7 +33,7 @@
 			<key>IOClass</key>
 			<string>AtherosE2200</string>
 			<key>IOPCIMatch</key>
-			<string>0x10901969 0x10911969 0x10A01969 0x10A11969 0xE0911969 0xE0A11969</string>
+			<string>0x10901969 0x10911969 0x10A01969 0x10A11969 0xE0911969 0xE0A11969 0xE0B11969</string>
 			<key>IOProbeScore</key>
 			<integer>1000</integer>
 			<key>IOProviderClass</key>

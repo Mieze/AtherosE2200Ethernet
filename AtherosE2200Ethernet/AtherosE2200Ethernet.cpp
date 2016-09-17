@@ -38,6 +38,7 @@ static const char *chipNames[] = {
     "AR8172",
     "Killer E2200",
     "Killer E2400",
+    "Killer E2500",
 };
 
 static const char *onName = "enabled";
@@ -2844,6 +2845,13 @@ bool AtherosE2200::alxIdentifyChip()
             gbCapable = true;
             eeeCap = (ALX_LOCAL_EEEADV_100BT | ALX_LOCAL_EEEADV_1000BT);
             DebugLog("Ethernet [AtherosE2200]: Found Killer E2400.\n");
+            break;
+            
+        case ALX_DEV_ID_E2500:
+            chip = kChipKillerE2500;
+            gbCapable = true;
+            eeeCap = (ALX_LOCAL_EEEADV_100BT | ALX_LOCAL_EEEADV_1000BT);
+            DebugLog("Ethernet [AtherosE2200]: Found Killer E2500.\n");
             break;
             
         default:
