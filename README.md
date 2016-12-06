@@ -34,7 +34,8 @@ Installation
   8.Configure the interface.
 
 Troubleshooting
-  - Make sure you have followed the installation instructions especially when you have issues with certain domains while the others are working fine.
+  - Disabling Energy Efficient Ethernet (EEE) may be required to avoid situations in which the link gets lost randomly.
+  Make sure you have followed the installation instructions especially when you have issues with certain domains while the others are working fine.
   - Use the debug version to collect log data when trying to track down problems. The kernel log messages can be retrieved with "grep kernel /var/log/system.log" in Terminal. Include the log data when asking for support or giving feedback. I'm an engineer, not a clairvoyant.
   - Check your BIOS settings. You might want to disable Network Boot and the UEFI Network Stack as these can interfere with the driver.
   - Double check that you have removed any ALXEthernet.kext from your system because it could prevent the driver from working properly.
