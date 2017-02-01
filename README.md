@@ -46,6 +46,8 @@ Troubleshooting
   - Keep in mind that there are many manufacturers of network equipment. Although Ethernet is an IEEE standard, different implementations may show different behavior causing incompatibilities. In case you are having trouble try a different switch or a different cable.
 
 Changelog
+  -Version 2.2.1 (2017-02-01)
+    - Enabled polled receive mode.
   -Version 2.2.0 (2016-09-17)
     - Added support for Killer E2500 and jumbo frames.
  - Version 2.1.0d1 (2015-11-29)
