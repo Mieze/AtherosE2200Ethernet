@@ -46,34 +46,34 @@ Troubleshooting
   - Keep in mind that there are many manufacturers of network equipment. Although Ethernet is an IEEE standard, different implementations may show different behavior causing incompatibilities. In case you are having trouble try a different switch or a different cable.
 
 Changelog
-  -Version 2.2.1 (2017-02-01)
-    - Enabled polled receive mode.
-  -Version 2.2.0 (2016-09-17)
+ - Version 2.2.1 (2017-02-01)
+   - Enabled polled receive mode.
+ - Version 2.2.0 (2016-09-17)
     - Added support for Killer E2500 and jumbo frames.
  - Version 2.1.0d1 (2015-11-29)
     - Supports Energy Efficient Ethernet (EEE).
     - Added support for Killer E2400.
-  - Version 2.0.1 (2015-08-12)
+ - Version 2.0.1 (2015-08-12)
     - Improved flow control support in 100MBit mode.
-  - Version 2.0.0 (2015-04-21)
+ - Version 2.0.0 (2015-04-21)
     - Uses Apple's private driver interface introduced with 10.8.
     - Supports packet scheduling with QFQ.
     - Please note that 2.0.0 is identical to 2.0.0d1. Only the version number has changed.
-  - Version 1.0.1 (2015-03-01)
+ - Version 1.0.1 (2015-03-01)
     - Reworked media selection and reporting.
     - Improved flow control support.
     - Resolved the NIC disabled by BIOS issue. 
-  - Version 1.0.0 (2014-09-22)
+ - Version 1.0.0 (2014-09-22)
     - Final release.
-  - Version 1.0.0d7 (2014-08-18)
+ - Version 1.0.0d7 (2014-08-18)
     - Fixed Wake on LAN.
-  - Version 1.0.0d6 (2014-08-16)
+ - Version 1.0.0d6 (2014-08-16)
     - Detects situations when the BIOS left the NIC disabled and outputs an error messages.
     - Small optimizations and improved error handling.
-  - Version 1.0.0d5 (2014-08-13)
+ - Version 1.0.0d5 (2014-08-13)
     - Removed the mbuf_pullup() call in outputPacket() as the NIC seems to accept packets with noncontiguous headers.
-  - Version 1.0.0d4 (2014-08-12)
+ - Version 1.0.0d4 (2014-08-12)
     - Fixed TSO with IPv4 and IPv6.
-  - Version 1.0.0d3 (2014-08-10)
+ - Version 1.0.0d3 (2014-08-10)
     - Added support for TCP and UDP checksum offload over IPv6.
     - Cleaned up the code and improved error handling.
