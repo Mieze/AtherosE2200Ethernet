@@ -1341,7 +1341,7 @@ bool AtherosE2200::setupDMADescriptors()
     }
     txNextDescIndex = txDirtyDescIndex = 0;
     txNumFreeDesc = kNumTxDesc;
-    txMbufCursor = IOMbufNaturalMemoryCursor::withSpecification(0x4000, kMaxSegs);
+    txMbufCursor = IOMbufNaturalMemoryCursor::withSpecification(0x1000, kMaxSegs);
     
     if (!txMbufCursor) {
         IOLog("Ethernet [AtherosE2200]: Couldn't create txMbufCursor.\n");
@@ -2048,7 +2048,7 @@ void AtherosE2200::setLinkUp()
             pollParams.highThresholdPackets = 40;
             pollParams.lowThresholdBytes = 0x1000;
             pollParams.highThresholdBytes = 0x10000;
-            pollParams.pollIntervalTime = (hw.link_speed == SPEED_1000) ? 200000 : 1000000;  /* 200µs / 1ms */
+            pollParams.pollIntervalTime = (hw.link_speed == SPEED_1000) ? 170000 : 1000000;  /* 200µs / 1ms */
         }
         netif->setPacketPollingParameters(&pollParams, 0);
     }
