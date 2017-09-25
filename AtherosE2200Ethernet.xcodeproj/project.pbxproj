@@ -454,7 +454,7 @@
 				INFOPLIST_FILE = "AtherosE2200Ethernet/AtherosE2200Ethernet-Info.plist";
 				MACOSX_DEPLOYMENT_TARGET = 10.12;
 				MODULE_NAME = com.insanelymac.AtherosE2200Ethernet;
-				MODULE_VERSION = 2.2.1;
+				MODULE_VERSION = 2.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.insanelymac.${PRODUCT_NAME:rfc1034identifier}";
 				PRODUCT_NAME = AtherosE2200Ethernet;
 				SDKROOT = macosx;
@@ -473,7 +473,7 @@
 				INFOPLIST_FILE = "AtherosE2200Ethernet/AtherosE2200Ethernet-Info.plist";
 				MACOSX_DEPLOYMENT_TARGET = 10.12;
 				MODULE_NAME = com.insanelymac.AtherosE2200Ethernet;
-				MODULE_VERSION = 2.2.1;
+				MODULE_VERSION = 2.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.insanelymac.${PRODUCT_NAME:rfc1034identifier}";
 				PRODUCT_NAME = AtherosE2200Ethernet;
 				SDKROOT = macosx;

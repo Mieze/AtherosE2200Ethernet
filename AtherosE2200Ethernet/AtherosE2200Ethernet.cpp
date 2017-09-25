@@ -1033,25 +1033,18 @@ IOReturn AtherosE2200::getPacketFilters(const OSSymbol *group, UInt32 *filters) 
     return result;
 }
 
-/* There seems to be a hardware bug which prevents the Killer and AR816x/AR817x
- * NICs from changing their MAC address. Writes to the MAC adddress registers
- * result in a messed up address register effectively killing unicast packet
- * reception until the next reset. As a workaround, we acknowledge the request
- * without performing any action as refusing it would break LACP.
- */
 IOReturn AtherosE2200::setHardwareAddress(const IOEthernetAddress *addr)
 {
     IOReturn result = kIOReturnSuccess;
     
     DebugLog("setHardwareAddress() ===>\n");
-/*
-    if (addr && ether_addr_equal(&addr->bytes[0], &origMacAddr.bytes[0])) {
-        memcpy(&currMacAddr.bytes[0], &addr->bytes[0], kIOEthernetAddressSize);
-        alxSetHardwareAddress(addr);
 
-        result = kIOReturnSuccess;
+    if (addr && ether_addr_equal(&addr->bytes[0], &origMacAddr.bytes[0])) {
+        alxLoadDefaultAddress();
+    } else {
+        result = alxSetHardwareAddress(addr);
     }
-*/
+
     DebugLog("setHardwareAddress() <===\n");
     
     return result;
@@ -2347,17 +2340,24 @@ done:
     return result;
 }
 
-void AtherosE2200::alxSetHardwareAddress(const IOEthernetAddress *addr)
+IOReturn AtherosE2200::alxSetHardwareAddress(const IOEthernetAddress *addr)
 {
+    IOReturn result = kIOReturnSuccess;
     UInt32 mac0, mac1;
     
-    mac0 = ((addr->bytes[2] << 24) || (addr->bytes[3] << 16) || (addr->bytes[4] << 8) || addr->bytes[5]);
+    mac0 = OSSwapBigToHostInt32(*((UInt32 *)&addr->bytes[2]));
     alxWriteMem32(ALX_STAD0, mac0);
-    mac1 = ((addr->bytes[0] << 8) || addr->bytes[1]);
+    mac1 = OSSwapBigToHostInt16(*((UInt16 *)&addr->bytes[0]));
     alxWriteMem32(ALX_STAD1, mac1);
     
-    if ((alxReadMem32(ALX_STAD0) != mac0) || (alxReadMem32(ALX_STAD1) != mac1))
-        IOLog("Ethernet [AtherosE2200]: Failed to set MAC address.\n");
+    if ((alxReadMem32(ALX_STAD0) != mac0) || (alxReadMem32(ALX_STAD1) != mac1)) {
+        alxLoadDefaultAddress();
+        IOLog("Ethernet [AtherosE2200]: Failed to set MAC address. Permanent address restored.\n");
+        result = kIOReturnError;
+    } else {
+        memcpy(&currMacAddr.bytes[0], &addr->bytes[0], kIOEthernetAddressSize);
+    }
+    return result;
 }
 
 bool AtherosE2200::alxStart(UInt32 maxIntrRate)
@@ -2431,8 +2431,8 @@ bool AtherosE2200::alxStart(UInt32 maxIntrRate)
         IOLog("Ethernet [AtherosE2200]: Failed to identify PHY.\n");
         goto done;
 	}
-    IOLog("Ethernet [AtherosE2200]: %s: (Rev. %u) at 0x%lx, %2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x\n",
-          chipNames[chip], pciDeviceData.revision, (unsigned long)baseAddr,
+    IOLog("Ethernet [AtherosE2200]: %s: (Rev. %u) at 0x%p, %2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x\n",
+          chipNames[chip], pciDeviceData.revision, baseAddr,
           origMacAddr.bytes[0], origMacAddr.bytes[1],
           origMacAddr.bytes[2], origMacAddr.bytes[3],
           origMacAddr.bytes[4], origMacAddr.bytes[5]);

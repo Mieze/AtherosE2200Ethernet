@@ -319,7 +319,7 @@ private:
     bool checkForDeadlock();
     
     /* Hardware specific methods */
-    void alxSetHardwareAddress(const IOEthernetAddress *addr);
+    IOReturn alxSetHardwareAddress(const IOEthernetAddress *addr);
     bool alxLoadDefaultAddress();
     bool alxStart(UInt32 maxIntrRate);
     void alxEnable();

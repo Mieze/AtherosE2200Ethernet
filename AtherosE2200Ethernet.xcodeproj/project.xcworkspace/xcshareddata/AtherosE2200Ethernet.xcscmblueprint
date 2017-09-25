@@ -11,7 +11,7 @@
   "DVTSourceControlWorkspaceBlueprintIdentifierKey" : "EF5DE8B8-F8CD-42F3-BFAD-A74E560D7A6D",
   "DVTSourceControlWorkspaceBlueprintWorkingCopyPathsKey" : {
     "CDCA2184861B0BBA9C5ECB0C5CE4459094A5CB2E" : "AtherosE2200Ethernet\/",
-    "322B76FC62564D70D3D2B79682113A4F1191D2DD" : "IntelMausiEthernet",
+    "322B76FC62564D70D3D2B79682113A4F1191D2DD" : "IntelMausiEthernet\/",
     "52FD44A8D7C2885B44C325DC0C12115B6E4CC996" : "RealtekRTL8111\/"
   },
   "DVTSourceControlWorkspaceBlueprintNameKey" : "AtherosE2200Ethernet",
