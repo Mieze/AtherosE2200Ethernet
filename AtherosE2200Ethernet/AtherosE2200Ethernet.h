@@ -230,11 +230,7 @@ enum
 #define kDriverVersionName "Driver_Version"
 #define kNameLenght 64
 
-#ifdef __PRIVATE_SPI__
-
 #define kEnableRxPollName "rxPolling"
-
-#endif /* __PRIVATE_SPI__ */
 
 class AtherosE2200 : public super
 {
@@ -257,13 +253,9 @@ public:
 	virtual IOReturn enable(IONetworkInterface *netif);
 	virtual IOReturn disable(IONetworkInterface *netif);
 	
-#ifdef __PRIVATE_SPI__
     virtual IOReturn outputStart(IONetworkInterface *interface, IOOptionBits options );
     virtual IOReturn setInputPacketPollingEnable(IONetworkInterface *interface, bool enabled);
     virtual void pollInputPackets(IONetworkInterface *interface, uint32_t maxCount, IOMbufQueue *pollQueue, void *context);
-#else
-    virtual UInt32 outputPacket(mbuf_t m, void *param);
-#endif /* __PRIVATE_SPI__ */
 	
 	virtual void getPacketBufferConstraints(IOPacketBufferConstraints *constraints) const;
 	
@@ -303,15 +295,11 @@ private:
     void interruptOccurred(OSObject *client, IOInterruptEventSource *src, int count);
     void txInterrupt();
     
-#ifdef __PRIVATE_SPI__
     UInt32 rxInterrupt(IONetworkInterface *interface, uint32_t maxCount, IOMbufQueue *pollQueue, void *context);
-#else
-    void rxInterrupt();
-#endif /* __PRIVATE_SPI__ */
 
     bool setupDMADescriptors();
     void freeDMADescriptors();
-    void txClearDescriptors();
+    void clearDescriptors();
     void checkLinkStatus();
     void updateStatitics();
     void setLinkUp();
@@ -339,10 +327,13 @@ private:
     int alxSetupSpeedDuplex(UInt32 ethadv, UInt16 eeeadv, UInt8 flowctrl);
     int alxSelectPowersavingSpeed(int *speed, UInt8 *duplex);
     void alxSpeedDuplexForMedium(const IONetworkMedium *medium);
+    IOReturn alxActiveMediumIndex(UInt32 *index);
 
     /* timer action */
     void timerAction(IOTimerEventSource *timer);
     
+    void getInterfaceAddresses();
+
 private:
 	IOWorkLoop *workLoop;
     IOCommandGate *commandGate;
@@ -365,12 +356,6 @@ private:
     UInt64 txDescDoneCount;
     UInt64 txDescDoneLast;
     SInt32 txNumFreeDesc;
-    
-#ifndef __PRIVATE_SPI__
-    UInt32 txStallCount;
-    UInt32 txStallLast;
-#endif /* __PRIVATE_SPI__ */
-
     UInt16 txNextDescIndex;
     UInt16 txDirtyDescIndex;
     
@@ -400,10 +385,8 @@ private:
     UInt32 chip;
     UInt32 intrMask;
     
-#ifdef __PRIVATE_SPI__
     UInt32 linkOpts;
     IONetworkPacketPollingParameters pollParams;
-#endif /* __PRIVATE_SPI__ */
 
     struct alx_hw hw;
     struct pci_dev pciDeviceData;
@@ -419,12 +402,8 @@ private:
 	bool multicastMode;
     bool linkUp;
     
-#ifdef __PRIVATE_SPI__
     bool rxPoll;
     bool polling;
-#else
-    bool stalled;
-#endif /* __PRIVATE_SPI__ */
     
     bool useMSI;
     bool gbCapable;;

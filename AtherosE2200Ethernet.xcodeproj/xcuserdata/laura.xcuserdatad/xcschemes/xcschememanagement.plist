@@ -4,11 +4,6 @@
 <dict>
 	<key>SchemeUserState</key>
 	<dict>
-		<key>AtherosE2200Ethernet.xcscheme</key>
-		<dict>
-			<key>orderHint</key>
-			<integer>0</integer>
-		</dict>
 		<key>AtherosE2200EthernetV2.xcscheme</key>
 		<dict>
 			<key>orderHint</key>

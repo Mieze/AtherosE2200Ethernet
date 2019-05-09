@@ -612,6 +612,116 @@
 /* flag of phy inited */
 #define ALX_PHY_INITED					0x003F
 
+/* PERST affect */
+#define ALX_DRV_ERR1                    0x1808
+#define ALX_DRV_ERR1_GEN                BIT(31)
+#define ALX_DRV_ERR1_NOR                BIT(30)
+#define ALX_DRV_ERR1_TRUNC              BIT(29)
+#define ALX_DRV_ERR1_RES                BIT(28)
+#define ALX_DRV_ERR1_INTFATAL           BIT(27)
+#define ALX_DRV_ERR1_TXQPEND            BIT(26)
+#define ALX_DRV_ERR1_DMAW               BIT(25)
+#define ALX_DRV_ERR1_DMAR               BIT(24)
+#define ALX_DRV_ERR1_PCIELNKDWN         BIT(23)
+#define ALX_DRV_ERR1_PKTSIZE            BIT(22)
+#define ALX_DRV_ERR1_FIFOFUL            BIT(21)
+#define ALX_DRV_ERR1_RFDUR              BIT(20)
+#define ALX_DRV_ERR1_RRDSI              BIT(19)
+#define ALX_DRV_ERR1_UPDATE             BIT(18)
+
+#define ALX_DRV_ERR2                    0x180C
+
+#define ALX_DBG_ADDR                    0x1900
+#define ALX_DBG_DATA                    0x1904
+
+#define ALX_SYNC_IPV4_SA                0x1A00
+#define ALX_SYNC_IPV4_DA                0x1A04
+
+#define ALX_SYNC_V4PORT                 0x1A08
+#define ALX_SYNC_V4PORT_DST_MASK        0xFFFFUL
+#define ALX_SYNC_V4PORT_DST_SHIFT       16
+#define ALX_SYNC_V4PORT_SRC_MASK        0xFFFFUL
+#define ALX_SYNC_V4PORT_SRC_SHIFT       0
+
+#define ALX_SYNC_IPV6_SA0               0x1A0C
+#define ALX_SYNC_IPV6_SA1               0x1A10
+#define ALX_SYNC_IPV6_SA2               0x1A14
+#define ALX_SYNC_IPV6_SA3               0x1A18
+#define ALX_SYNC_IPV6_DA0               0x1A1C
+#define ALX_SYNC_IPV6_DA1               0x1A20
+#define ALX_SYNC_IPV6_DA2               0x1A24
+#define ALX_SYNC_IPV6_DA3               0x1A28
+
+#define ALX_SYNC_V6PORT                 0x1A2C
+#define ALX_SYNC_V6PORT_DST_MASK        0xFFFFUL
+#define ALX_SYNC_V6PORT_DST_SHIFT       16
+#define ALX_SYNC_V6PORT_SRC_MASK        0xFFFFUL
+#define ALX_SYNC_V6PORT_SRC_SHIFT       0
+
+#define ALX_ARP_REMOTE_IPV4             0x1A30
+#define ALX_ARP_HOST_IPV4               0x1A34
+#define ALX_ARP_MAC0                    0x1A38
+#define ALX_ARP_MAC1                    0x1A3C
+
+#define ALX_1ST_REMOTE_IPV6_0           0x1A40
+#define ALX_1ST_REMOTE_IPV6_1           0x1A44
+#define ALX_1ST_REMOTE_IPV6_2           0x1A48
+#define ALX_1ST_REMOTE_IPV6_3           0x1A4C
+
+#define ALX_1ST_SN_IPV6_0               0x1A50
+#define ALX_1ST_SN_IPV6_1               0x1A54
+#define ALX_1ST_SN_IPV6_2               0x1A58
+#define ALX_1ST_SN_IPV6_3               0x1A5C
+
+#define ALX_1ST_TAR_IPV6_1_0            0x1A60
+#define ALX_1ST_TAR_IPV6_1_1            0x1A64
+#define ALX_1ST_TAR_IPV6_1_2            0x1A68
+#define ALX_1ST_TAR_IPV6_1_3            0x1A6C
+#define ALX_1ST_TAR_IPV6_2_0            0x1A70
+#define ALX_1ST_TAR_IPV6_2_1            0x1A74
+#define ALX_1ST_TAR_IPV6_2_2            0x1A78
+#define ALX_1ST_TAR_IPV6_2_3            0x1A7C
+
+#define ALX_2ND_REMOTE_IPV6_0           0x1A80
+#define ALX_2ND_REMOTE_IPV6_1           0x1A84
+#define ALX_2ND_REMOTE_IPV6_2           0x1A88
+#define ALX_2ND_REMOTE_IPV6_3           0x1A8C
+
+#define ALX_2ND_SN_IPV6_0               0x1A90
+#define ALX_2ND_SN_IPV6_1               0x1A94
+#define ALX_2ND_SN_IPV6_2               0x1A98
+#define ALX_2ND_SN_IPV6_3               0x1A9C
+
+#define ALX_2ND_TAR_IPV6_1_0            0x1AA0
+#define ALX_2ND_TAR_IPV6_1_1            0x1AA4
+#define ALX_2ND_TAR_IPV6_1_2            0x1AA8
+#define ALX_2ND_TAR_IPV6_1_3            0x1AAC
+#define ALX_2ND_TAR_IPV6_2_0            0x1AB0
+#define ALX_2ND_TAR_IPV6_2_1            0x1AB4
+#define ALX_2ND_TAR_IPV6_2_2            0x1AB8
+#define ALX_2ND_TAR_IPV6_2_3            0x1ABC
+
+#define ALX_1ST_NS_MAC0                 0x1AC0
+#define ALX_1ST_NS_MAC1                 0x1AC4
+
+#define ALX_2ND_NS_MAC0                 0x1AC8
+#define ALX_2ND_NS_MAC1                 0x1ACC
+
+#define ALX_PMOFLD                      0x144C
+/* bit[11:10]: for B0+ */
+#define ALX_PMOFLD_ECMA_IGNR_FRG_SSSR   BIT(11)
+#define ALX_PMOFLD_ARP_CNFLCT_WAKEUP    BIT(10)
+#define ALX_PMOFLD_MULTI_SOLD           BIT(9)
+#define ALX_PMOFLD_ICMP_XSUM            BIT(8)
+#define ALX_PMOFLD_GARP_REPLY           BIT(7)
+#define ALX_PMOFLD_SYNCV6_ANY           BIT(6)
+#define ALX_PMOFLD_SYNCV4_ANY           BIT(5)
+#define ALX_PMOFLD_BY_HW                BIT(4)
+#define ALX_PMOFLD_NS_EN                BIT(3)
+#define ALX_PMOFLD_ARP_EN               BIT(2)
+#define ALX_PMOFLD_SYNCV6_EN            BIT(1)
+#define ALX_PMOFLD_SYNCV4_EN            BIT(0)
+
 /* reg 1830 ~ 186C for C0+, 16 bit map patterns and wake packet detection */
 #define ALX_WOL_CTRL2					0x1830
 #define ALX_WOL_CTRL2_DATA_STORE			BIT(3)
