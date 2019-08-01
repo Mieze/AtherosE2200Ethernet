@@ -192,6 +192,7 @@
 			developmentRegion = English;
 			hasScannedForEncodings = 0;
 			knownRegions = (
+				English,
 				en,
 			);
 			mainGroup = D3258564198482FF00C05A72;
@@ -363,7 +364,7 @@
 				INFOPLIST_FILE = "AtherosE2200Ethernet/AtherosE2200Ethernet-Info.plist";
 				MACOSX_DEPLOYMENT_TARGET = 10.14;
 				MODULE_NAME = com.insanelymac.AtherosE2200Ethernet;
-				MODULE_VERSION = 2.3.0d0;
+				MODULE_VERSION = 2.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.insanelymac.${PRODUCT_NAME:rfc1034identifier}";
 				PRODUCT_NAME = AtherosE2200Ethernet;
 				SDKROOT = macosx;
@@ -382,7 +383,7 @@
 				INFOPLIST_FILE = "AtherosE2200Ethernet/AtherosE2200Ethernet-Info.plist";
 				MACOSX_DEPLOYMENT_TARGET = 10.14;
 				MODULE_NAME = com.insanelymac.AtherosE2200Ethernet;
-				MODULE_VERSION = 2.3.0d0;
+				MODULE_VERSION = 2.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.insanelymac.${PRODUCT_NAME:rfc1034identifier}";
 				PRODUCT_NAME = AtherosE2200Ethernet;
 				SDKROOT = macosx;
