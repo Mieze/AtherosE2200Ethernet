@@ -21,7 +21,8 @@ Qualcomm Atheros Killer E2200 driver for macOS
   - MSI Z97 G45 Gaming w/ E2205 must use release v2.1.0
 
 ## FAQ
-  - Could you add support for AR813x and AR815x? Sorry, no, because I used a different linux driver as the code base than Shailua which doesn't support these chips so that it would be too much work to add support for them.
+### Could you add support for AR813x and AR815x?
+Sorry, no, because I used a different linux driver as the code base than Shailua which doesn't support these chips so that it would be too much work to add support for them.
 
 ## Installation
   1. Goto /S/L/E and delete ALXEthernet.kext.
