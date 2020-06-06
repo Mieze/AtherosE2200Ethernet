@@ -562,7 +562,7 @@ IOReturn AtherosE2200::outputStart(IONetworkInterface *interface, IOOptionBits o
             } else {
                 txMbufArray[index] = NULL;
             }
-            desc->vlanTag = OSSwapHostToLittleInt16(vlanTag);
+            desc->vlanTag = OSSwapHostToBigInt16(vlanTag);
             desc->length = OSSwapHostToLittleInt16(segLen);
             desc->word1 = OSSwapHostToLittleInt32(word1);
             desc->adrl.addr = OSSwapHostToLittleInt64(txSegments[i].location);
@@ -951,25 +951,35 @@ IOReturn AtherosE2200::getMaxPacketSize(UInt32 * maxSize) const
 IOReturn AtherosE2200::setMaxPacketSize(UInt32 maxSize)
 {
     IOReturn result = kIOReturnError;
+    ifnet_t ifnet = netif->getIfnet();
+    ifnet_offload_t offload;
     UInt32 mask = 0;
-    UInt32 caps = 0;
-    
+
     DebugLog("setMaxPacketSize() ===>\n");
     
     if (maxSize <= kMaxPacketSize) {
         hw.mtu = maxSize - (ETH_HLEN + ETH_FCS_LEN);
         
+        DebugLog("Ethernet [AtherosE2200]: maxSize: %u, mtu: %u\n", maxSize, hw.mtu);
+
         if(enableTSO4)
             mask |= IFNET_TSO_IPV4;
         
         if(enableTSO6)
             mask |= IFNET_TSO_IPV6;
         
-        caps = (hw.mtu > ALX_MAX_TSO_PKT_SIZE) ? 0 : mask;
-        ifnet_set_capabilities_enabled(netif->getIfnet(), caps, mask);
+        offload = ifnet_offload(ifnet);
         
-        DebugLog("Ethernet [AtherosE2200]: maxSize: %u, mtu: %u\n", maxSize, hw.mtu);
-        
+        if (hw.mtu > ALX_MAX_TSO_PKT_SIZE) {
+            offload &= ~mask;
+            DebugLog("Disable hardware offload features: %x!\n", mask);
+        } else {
+            offload |= mask;
+            DebugLog("Enable hardware offload features: %x!\n", mask);
+        }
+        if (ifnet_set_offload(ifnet, offload))
+            IOLog("Error setting hardware offload: %x!\n", offload);
+
         /* Force reinitialization. */
         setLinkDown();
         alxSetupSpeedDuplex(hw.adv_cfg, eeeAdv, hw.flowctrl);

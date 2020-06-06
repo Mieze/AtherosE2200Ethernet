@@ -34,6 +34,10 @@
 		D32A20721986236A00E64285 /* ethtool.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ethtool.h; sourceTree = "<group>"; };
 		D34D36C81AD2F79F00EEEC08 /* APPLE_LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = APPLE_LICENSE; sourceTree = "<group>"; };
 		D3581701198FB4D2009096B2 /* uapi-ip.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "uapi-ip.h"; sourceTree = "<group>"; };
+		D3626AA1244BA9B600F226D9 /* IOEthernetInterface.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = IOEthernetInterface.h; sourceTree = "<group>"; };
+		D3626AA2244BA9B600F226D9 /* kpi_interface.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = kpi_interface.h; sourceTree = "<group>"; };
+		D3626AA3244BA9B600F226D9 /* kpi_mbuf.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = kpi_mbuf.h; sourceTree = "<group>"; };
+		D3626AA4244BA9B600F226D9 /* IOEthernetController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = IOEthernetController.h; sourceTree = "<group>"; };
 		D3B795AD1ABE58DE00CE2796 /* IONetworkController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = IONetworkController.h; sourceTree = "<group>"; };
 		D3B795AE1ABE58DE00CE2796 /* IONetworkInterface.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = IONetworkInterface.h; sourceTree = "<group>"; };
 		D3B795BD1ABE590400CE2796 /* AtherosE2200Ethernet.kext */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AtherosE2200Ethernet.kext; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -138,8 +142,12 @@
 		D3B795AC1ABE58CA00CE2796 /* Apple Headers */ = {
 			isa = PBXGroup;
 			children = (
+				D3626AA4244BA9B600F226D9 /* IOEthernetController.h */,
+				D3626AA1244BA9B600F226D9 /* IOEthernetInterface.h */,
 				D3B795AD1ABE58DE00CE2796 /* IONetworkController.h */,
 				D3B795AE1ABE58DE00CE2796 /* IONetworkInterface.h */,
+				D3626AA2244BA9B600F226D9 /* kpi_interface.h */,
+				D3626AA3244BA9B600F226D9 /* kpi_mbuf.h */,
 			);
 			name = "Apple Headers";
 			sourceTree = "<group>";
@@ -184,16 +192,16 @@
 		D3258565198482FF00C05A72 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 1010;
+				LastUpgradeCheck = 1150;
 				ORGANIZATIONNAME = "Laura Müller";
 			};
 			buildConfigurationList = D3258568198482FF00C05A72 /* Build configuration list for PBXProject "AtherosE2200Ethernet" */;
 			compatibilityVersion = "Xcode 3.2";
-			developmentRegion = English;
+			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				English,
 				en,
+				Base,
 			);
 			mainGroup = D3258564198482FF00C05A72;
 			productRefGroup = D3258570198482FF00C05A72 /* Products */;
@@ -299,7 +307,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.14;
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
 			};
@@ -348,7 +356,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.14;
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
 				SDKROOT = macosx;
 			};
 			name = Release;
@@ -357,14 +365,15 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = $MODULE_VERSION;
+				CURRENT_PROJECT_VERSION = 2.3.2;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "AtherosE2200Ethernet/AtherosE2200EthernetV2-Prefix.pch";
 				GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = YES;
 				INFOPLIST_FILE = "AtherosE2200Ethernet/AtherosE2200Ethernet-Info.plist";
-				MACOSX_DEPLOYMENT_TARGET = 10.14;
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				MARKETING_VERSION = 2.3.2;
 				MODULE_NAME = com.insanelymac.AtherosE2200Ethernet;
-				MODULE_VERSION = 2.3.0;
+				MODULE_VERSION = 2.3.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.insanelymac.${PRODUCT_NAME:rfc1034identifier}";
 				PRODUCT_NAME = AtherosE2200Ethernet;
 				SDKROOT = macosx;
@@ -376,14 +385,15 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = $MODULE_VERSION;
+				CURRENT_PROJECT_VERSION = 2.3.2;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "AtherosE2200Ethernet/AtherosE2200EthernetV2-Prefix.pch";
 				GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = YES;
 				INFOPLIST_FILE = "AtherosE2200Ethernet/AtherosE2200Ethernet-Info.plist";
-				MACOSX_DEPLOYMENT_TARGET = 10.14;
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				MARKETING_VERSION = 2.3.2;
 				MODULE_NAME = com.insanelymac.AtherosE2200Ethernet;
-				MODULE_VERSION = 2.3.0;
+				MODULE_VERSION = 2.3.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.insanelymac.${PRODUCT_NAME:rfc1034identifier}";
 				PRODUCT_NAME = AtherosE2200Ethernet;
 				SDKROOT = macosx;
