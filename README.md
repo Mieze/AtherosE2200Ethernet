@@ -1,9 +1,9 @@
 AtherosE2200Ethernet
 ====================
 
-Qualcomm Atheros Killer E2200 driver for OS X
+Qualcomm Atheros Killer E2200 driver for macOS
 
-Key Features of the Driver
+## Key Features of the Driver
   - Supports Qualcomm Atheros AR816x, AR817x, Killer E220x, Killer E2400 and Killer E2500.
   - Support for multisegment packets relieving the network stack of unnecessary copy operations when assembling packets for transmission.
   - No-copy receive and transmit. Only small packets are copied on reception because creating a copy is more efficient than allocating a new buffer.
@@ -17,13 +17,14 @@ Key Features of the Driver
   - Supports jumbo frames up to 9000 bytes.
   - The driver is published under GPLv2.
 
-Known Issues
-  - None.
+## Known Issues
+  - MSI Z97 G45 Gaming w/ E2205 must use release v2.1.0
 
-FAQ
-  - Could you add support for AR813x and AR815x? Sorry, no, because I used a different linux driver as the code base than Shailua which doesn't support these chips so that it would be too much work to add support for them.
+## FAQ
+### Could you add support for AR813x and AR815x?
+Sorry, no, because I used a different linux driver as the code base than Shailua which doesn't support these chips so that it would be too much work to add support for them.
 
-Installation
+## Installation
   1. Goto /S/L/E and delete ALXEthernet.kext.
   2. Recreate the kernel cache.
   3. Open System Preferences and delete the corresponding network interface, e. g. en0.
@@ -33,7 +34,7 @@ Installation
   7. Open System Preferences again, select Network and check if the new network interface has been created automatically or create it manually now.
   8.Configure the interface.
 
-Troubleshooting
+## Troubleshooting
   - Disabling Energy Efficient Ethernet (EEE) may be required to avoid situations in which the link gets lost randomly.
   Make sure you have followed the installation instructions especially when you have issues with certain domains while the others are working fine.
   - Use the debug version to collect log data when trying to track down problems. The kernel log messages can be retrieved with "grep kernel /var/log/system.log" in Terminal. Include the log data when asking for support or giving feedback. I'm an engineer, not a clairvoyant.
@@ -45,7 +46,7 @@ Troubleshooting
   - Use Wireshark to create a packet dump in order to collect diagnostic information.
   - Keep in mind that there are many manufacturers of network equipment. Although Ethernet is an IEEE standard, different implementations may show different behavior causing incompatibilities. In case you are having trouble try a different switch or a different cable.
 
-Changelog
+## Changelog
  - Version 2.2.1 (2017-02-01)
    - Enabled polled receive mode.
  - Version 2.2.0 (2016-09-17)
