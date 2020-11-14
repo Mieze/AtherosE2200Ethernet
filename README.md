@@ -12,7 +12,7 @@ Qualcomm Atheros Killer E2200 driver for macOS
   - Makes use of the chip's TCP Segmentation Offload (TSO) feature with IPv4 and IPv6 in order to reduce CPU load while sending large amounts of data.
   - Fully optimized for Mountain Lion, Mavericks and Yosemite (64bit architecture) but version 1.x.x should work with Lion too, provided you build from source with the 10.7 SDK.
   - Wake on LAN support.
-  - VLAN support is implemented but untested as I have no need for it.
+  - VLAN support is working since version 2.3.2.
   - Supports Energy Efficient Ethernet (EEE).
   - Supports jumbo frames up to 9000 bytes.
   - The driver is published under GPLv2.
@@ -47,6 +47,9 @@ Sorry, no, because I used a different linux driver as the code base than Shailua
   - Keep in mind that there are many manufacturers of network equipment. Although Ethernet is an IEEE standard, different implementations may show different behavior causing incompatibilities. In case you are having trouble try a different switch or a different cable.
 
 ## Changelog
+ - Version 2.3.2 (2020-06-07)
+   - Fixed VLAN support.
+   - Fixed build issue with Xcode 11.5.
  - Version 2.2.1 (2017-02-01)
    - Enabled polled receive mode.
  - Version 2.2.0 (2016-09-17)
