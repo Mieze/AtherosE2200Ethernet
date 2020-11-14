@@ -142,7 +142,6 @@ bool AtherosE2200::init(OSDictionary *properties)
         promiscusMode = false;
         multicastMode = false;
         linkUp = false;
-        linkOpts = 0;
         polling = false;
         rxPoll = false;
         useMSI = false;
@@ -1624,8 +1623,7 @@ void AtherosE2200::setLinkUp()
     alx_cfg_mac_flowcontrol(&hw, flowControl);
     
     linkUp = true;
-    setLinkStatus((kIONetworkLinkValid | kIONetworkLinkActive | linkOpts), mediumTable[mediumIndex]);
-    linkOpts = 0;
+    setLinkStatus((kIONetworkLinkValid | kIONetworkLinkActive), mediumTable[mediumIndex]);
     
     if (rxPoll) {
         /* Update poll params according to link speed. */
@@ -1642,7 +1640,7 @@ void AtherosE2200::setLinkUp()
             pollParams.highThresholdPackets = 40;
             pollParams.lowThresholdBytes = 0x1000;
             pollParams.highThresholdBytes = 0x10000;
-            pollParams.pollIntervalTime = (hw.link_speed == SPEED_1000) ? 170000 : 1000000;  /* 200µs / 1ms */
+            pollParams.pollIntervalTime = (hw.link_speed == SPEED_1000) ? 170000 : 1000000;  /* 170µs / 1ms */
         }
         netif->setPacketPollingParameters(&pollParams, 0);
     }
@@ -1972,7 +1970,6 @@ bool AtherosE2200::alxStart(UInt32 maxIntrRate)
 	hw.rx_ctrl = (ALX_MAC_CTRL_WOLSPED_SWEN | ALX_MAC_CTRL_BRD_EN | ALX_MAC_CTRL_VLANSTRIP | ALX_MAC_CTRL_MHASH_ALG_HI5B | ALX_MAC_CTRL_PCRCE | ALX_MAC_CTRL_CRCE | ALX_MAC_CTRL_RXFC_EN | ALX_MAC_CTRL_TXFC_EN | (7 << ALX_MAC_CTRL_PRMBLEN_SHIFT));
     
     eeeAdv = eeeCap;
-    linkOpts = 0;
 
     if (!alxResetPCIe())
         goto done;
@@ -2025,23 +2022,14 @@ void AtherosE2200::alxEnable()
 {
     const IONetworkMedium *selectedMedium = getSelectedMedium();
     UInt32 msiControl = ((hw.imt >> 1) << ALX_MSI_RETRANS_TM_SHIFT);
-    //UInt32 val = 0;
     
     if (!selectedMedium) {
         DebugLog("Ethernet [AtherosE2200]: No medium selected. Falling back to autonegotiation.\n");
         selectedMedium = mediumTable[MEDIUM_INDEX_AUTO];
         setCurrentMedium(selectedMedium);
     }
+    setLinkStatus(kIONetworkLinkValid);
 
-    //val = alxReadMem32(ALX_PMOFLD);
-    //val &= ~(ALX_PMOFLD_ICMP_XSUM | ALX_PMOFLD_GARP_REPLY | ALX_PMOFLD_BY_HW | ALX_PMOFLD_ARP_EN);
-    //alxWriteMem32(ALX_PMOFLD, val);
-
-    /* Check if we re waking up from sleep with WoL enabled and still have a valid link. */
-    if (!linkOpts || alxReadPhyLink() || (hw.link_speed == SPEED_UNKNOWN)) {
-        linkOpts = 0;
-        setLinkStatus(kIONetworkLinkValid);
-    }
     polling = false;
 
     hw.link_speed = SPEED_UNKNOWN;
@@ -2077,7 +2065,6 @@ void AtherosE2200::alxEnable()
 
 int AtherosE2200::alxDisable()
 {
-    UInt32 status = kIONetworkLinkValid;
     int error;
     int speed = 0;
     UInt8 duplex = 0;
@@ -2088,7 +2075,6 @@ int AtherosE2200::alxDisable()
     hw.duplex = DUPLEX_UNKNOWN;
     
     polling = false;
-    linkOpts = 0;
 
 	alx_reset_mac(&hw);
     
@@ -2121,15 +2107,13 @@ int AtherosE2200::alxDisable()
             DebugLog("Ethernet [AtherosE2200]: alx_config_wol() failed.\n");
             goto done;
         }
-        linkOpts = kIONetworkLinkNoNetworkChange;
-        status |= linkOpts;
     }
     error = 0;
     
 done:
     if (linkUp) {
         linkUp = false;
-        setLinkStatus(status);
+        setLinkStatus(kIONetworkLinkValid);
         IOLog("Ethernet [AtherosE2200]: Link down on en%u\n", netif->getUnitNumber());
     }
     return error;
@@ -2927,62 +2911,6 @@ IOReturn AtherosE2200::alxActiveMediumIndex(UInt32 *index)
         }
     }
     return result;
-}
-
-#pragma mark --- offload methods ---
-
-void AtherosE2200::getInterfaceAddresses()
-{
-    ifnet_t interface = netif->getIfnet();
-    ifaddr_t *addresses;
-    ifaddr_t addr;
-    struct sockaddr_in addr4;
-    struct sockaddr_in6 addr6;
-    sa_family_t family;
-    u_int32_t i = 0;
-    UInt32 val;
-
-    if (!ifnet_get_address_list(interface, &addresses)) {
-        while ((addr = addresses[i++]) != NULL) {
-            family = ifaddr_address_family(addr);
-            
-            switch (family) {
-                case AF_INET:
-                    if (!ifaddr_address(addr, (struct sockaddr *) &addr4, sizeof(struct sockaddr_in))) {
-                        DebugLog("Ethernet [AtherosE2200]: IPv4 address 0x%08x.\n", addr4.sin_addr.s_addr);
-                    }
-                    break;
-                    
-                case AF_INET6:
-                    if (!ifaddr_address(addr, (struct sockaddr *) &addr6, sizeof(struct sockaddr_in6))) {
-                        DebugLog("Ethernet [AtherosE2200]: IPv6 address 0x%08x 0x%08x 0x%08x 0x%08x.\n", addr6.sin6_addr.s6_addr32[0], addr6.sin6_addr.s6_addr32[1], addr6.sin6_addr.s6_addr32[2], addr6.sin6_addr.s6_addr32[3]);
-                    }
-                    break;
-                    
-                default:
-                    break;
-            }
-        }
-        ifnet_free_address_list(addresses);
-        
-        val = OSSwapInt32(addr4.sin_addr.s_addr);
-        
-        alxWriteMem32(ALX_ARP_REMOTE_IPV4, OSSwapInt32(0x650aa8c0));
-        alxWriteMem32(ALX_ARP_HOST_IPV4, val);
-        
-        alxWriteMem32(ALX_SYNC_IPV4_SA, val);
-        alxWriteMem32(ALX_SYNC_IPV4_DA, val);
-        alxWriteMem32(ALX_SYNC_V4PORT, 0);
-
-        alxWriteMem32(ALX_ARP_MAC0, alxReadMem32(ALX_STAD0));
-        alxWriteMem32(ALX_ARP_MAC1, alxReadMem32(ALX_STAD1));
-
-        //val = alxReadMem32(ALX_PMOFLD);
-        val = (ALX_PMOFLD_ECMA_IGNR_FRG_SSSR | ALX_PMOFLD_ARP_CNFLCT_WAKEUP | ALX_PMOFLD_MULTI_SOLD | ALX_PMOFLD_ICMP_XSUM | ALX_PMOFLD_GARP_REPLY | ALX_PMOFLD_SYNCV4_ANY | ALX_PMOFLD_BY_HW | ALX_PMOFLD_ARP_EN | ALX_PMOFLD_SYNCV4_EN);
-        alxWriteMem32(ALX_PMOFLD, val);
-        
-        alxWriteMem32(ALX_SRAM9, ALX_SRAM_LOAD_PTR);
-    }
 }
 
 #pragma mark --- timer action methods ---

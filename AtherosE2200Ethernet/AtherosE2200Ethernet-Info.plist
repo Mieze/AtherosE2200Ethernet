@@ -45,7 +45,7 @@
 			<key>enableTSO6</key>
 			<true/>
 			<key>maxIntrRate</key>
-			<integer>6500</integer>
+			<real>7000</real>
 			<key>rxPolling</key>
 			<true/>
 		</dict>

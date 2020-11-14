@@ -332,8 +332,6 @@ private:
     /* timer action */
     void timerAction(IOTimerEventSource *timer);
     
-    void getInterfaceAddresses();
-
 private:
 	IOWorkLoop *workLoop;
     IOCommandGate *commandGate;
@@ -385,7 +383,6 @@ private:
     UInt32 chip;
     UInt32 intrMask;
     
-    UInt32 linkOpts;
     IONetworkPacketPollingParameters pollParams;
 
     struct alx_hw hw;
