@@ -2,16 +2,17 @@
 // Prefix header for all source files of the 'AtherosE2200' target in the 'AtherosE2200Ethernet' project
 //
 
+#ifndef AtherosE2200_Prefix_pch
+#define AtherosE2200_Prefix_pch
+
 #define __PRIVATE_SPI__
 
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
     
-#include "kpi_mbuf.h"
-#include "kpi_interface.h"
-
 #include <libkern/libkern.h>
+#include <libkern/version.h>
 #include <libkern/OSAtomic.h>
 #include <machine/limits.h>
 #include <net/ethernet.h>
@@ -22,9 +23,12 @@ extern "C" {
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
 #include <netinet/tcp.h>
+#include <netinet/udp.h>
 #include <sys/appleapiopts.h>
 #include <sys/errno.h>
-    
+#include <sys/kpi_mbuf.h>
+#include <sys/time.h>
+
 #ifdef __cplusplus
 }
 #endif // __cplusplus
@@ -33,10 +37,8 @@ extern "C" {
 
 typedef u_int32_t ifnet_ctl_cmd_t;
 
-#include "IONetworkInterface.h"
-#include "IONetworkController.h"
-#include "IOEthernetController.h"
-#include "IOEthernetInterface.h"
+#include <IOKit/network/IONetworkInterface.h>
+#include <IOKit/network/IONetworkController.h>
 
 #include <IOKit/network/IOMbufMemoryCursor.h>
 #include <IOKit/IOBufferMemoryDescriptor.h>
@@ -46,8 +48,12 @@ typedef u_int32_t ifnet_ctl_cmd_t;
 #include <IOKit/IOLocks.h>
 #include <IOKit/IOTimerEventSource.h>
 #include <IOKit/IOTypes.h>
+#include <IOKit/network/IOEthernetController.h>
+#include <IOKit/network/IOEthernetInterface.h>
 #include <IOKit/network/IOBasicOutputQueue.h>
 #include <IOKit/pci/IOPCIDevice.h>
+#include <IOKit/IODMACommand.h>
+#include <IOKit/IOMapper.h>
 
 #endif // __cplusplus
 
@@ -60,3 +66,5 @@ typedef u_int32_t ifnet_ctl_cmd_t;
 #include "uapi-mdio.h"
 #include "mdio.h"
 #include "uapi-ip.h"
+
+#endif /* AtherosE2200_Prefix_pch */

@@ -28,7 +28,7 @@
 		<dict>
 			<key>CFBundleIdentifier</key>
 			<string>com.insanelymac.${PRODUCT_NAME:rfc1034identifier}</string>
-			<key>Driver_Version</key>
+			<key>DriverVersion</key>
 			<string>$MODULE_VERSION</string>
 			<key>IOClass</key>
 			<string>AtherosE2200</string>
@@ -44,10 +44,10 @@
 			<true/>
 			<key>enableTSO6</key>
 			<true/>
-			<key>maxIntrRate</key>
-			<real>7000</real>
 			<key>rxPolling</key>
 			<true/>
+			<key>maxIntrRate</key>
+			<integer>7000</integer>
 		</dict>
 	</dict>
 	<key>NSHumanReadableCopyright</key>

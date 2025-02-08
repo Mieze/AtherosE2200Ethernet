@@ -150,16 +150,23 @@ typedef struct QCARxFreeDesc {
 #define kRxLastDesc    (kNumRxDesc - 1)
 #define kTxDescMask    (kNumTxDesc - 1)
 #define kRxDescMask    (kNumRxDesc - 1)
-#define kTxDescSize    (kNumTxDesc*sizeof(QCATxDesc))
-#define kRxRetDescSize    (kNumRxDesc*sizeof(QCARxRetDesc))
-#define kRxFreeDescSize    (kNumRxDesc*sizeof(QCARxFreeDesc))
+#define kTxDescArraySize    (kNumTxDesc*sizeof(QCATxDesc))
+#define kRxRetDescArraySize    (kNumRxDesc*sizeof(QCARxRetDesc))
+#define kRxFreeDescArraySize    (kNumRxDesc*sizeof(QCARxFreeDesc))
+#define kRxDescArraySize         (kRxRetDescArraySize + kRxFreeDescArraySize)
+#define kRxBufArraySize (kNumRxDesc * sizeof(mbuf_t))
+#define kTxBufArraySize (kNumTxDesc * sizeof(mbuf_t))
 
-/* Complete Descriptor array */
-typedef struct QCARxTxDescArray {
+/* Tx descriptor array */
+typedef struct QCATxDescArray {
     QCATxDesc txDesc[kNumTxDesc];
+} QCATxDescArray;
+
+/* Rx descriptor array */
+typedef struct QCARxDescArray {
     QCARxRetDesc rxRetDesc[kNumRxDesc];
     QCARxFreeDesc rxFreeDesc[kNumRxDesc];
-} QCARxTxDescArray;
+} QCARxDescArray;
 
 /* This is the receive buffer size (must be exactly 2048 bytes to match a cluster). */
 #define kRxBufferPktSize 2048
@@ -297,8 +304,11 @@ private:
     
     UInt32 rxInterrupt(IONetworkInterface *interface, uint32_t maxCount, IOMbufQueue *pollQueue, void *context);
 
-    bool setupDMADescriptors();
-    void freeDMADescriptors();
+    bool setupRxResources();
+    bool setupTxResources();
+    bool setupStatResources();
+    void freeRxResources();
+    void freeTxResources();
     void clearDescriptors();
     void checkLinkStatus();
     void updateStatitics();
@@ -344,13 +354,17 @@ private:
 	IOTimerEventSource *timerSource;
 	IOEthernetInterface *netif;
 	IOMemoryMap *baseMap;
+    IOMapper *mapper;
     volatile void *baseAddr;
     
     /* transmitter data */
-    IOBufferMemoryDescriptor *bufDesc;
+    IOBufferMemoryDescriptor *txBufDesc;
     IOPhysicalAddress64 txPhyAddr;
+    IODMACommand *txDescDmaCmd;
     QCATxDesc *txDescArray;
     IOMbufNaturalMemoryCursor *txMbufCursor;
+    mbuf_t *txMbufArray;
+    void *txBufArrayMem;
     UInt64 txDescDoneCount;
     UInt64 txDescDoneLast;
     SInt32 txNumFreeDesc;
@@ -358,11 +372,15 @@ private:
     UInt16 txDirtyDescIndex;
     
     /* receiver data */
+    IOBufferMemoryDescriptor *rxBufDesc;
     IOPhysicalAddress64 rxRetPhyAddr;
     IOPhysicalAddress64 rxFreePhyAddr;
+    IODMACommand *rxDescDmaCmd;
     QCARxRetDesc *rxRetDescArray;
     QCARxFreeDesc *rxFreeDescArray;
 	IOMbufNaturalMemoryCursor *rxMbufCursor;
+    mbuf_t *rxMbufArray;
+    void *rxBufArrayMem;
     UInt32 multicastFilter[2];
     UInt16 rxNextDescIndex;
     
@@ -408,11 +426,7 @@ private:
     bool enableTSO4;
     bool enableTSO6;
     bool enableCSO6;
-    
-    /* mbuf_t arrays */
-    mbuf_t txMbufArray[kNumTxDesc];
-    mbuf_t rxMbufArray[kNumRxDesc];
-    
+        
 #ifdef CONFIG_RSS
     
     /* RSS parameter */
