@@ -107,6 +107,9 @@ bool AtherosE2200::init(OSDictionary *properties)
         txMbufCursor = NULL;
         rxBufArrayMem = NULL;
         txBufArrayMem = NULL;
+        sparePktHead = NULL;
+        sparePktTail = NULL;
+        spareNum = 0;
         isEnabled = false;
         promiscusMode = false;
         multicastMode = false;
@@ -1003,6 +1006,9 @@ void AtherosE2200::pollInputPackets(IONetworkInterface *interface, uint32_t maxC
     
         /* Finally cleanup the transmitter ring. */
         txInterrupt();
+        
+        if (spareNum < kRxNumSpareMbufs)
+            commandGate->runAction(refillAction);
     }
     //DebugLog("pollInputPackets() <===\n");
 }
@@ -1077,11 +1083,31 @@ UInt32 AtherosE2200::rxInterrupt(IONetworkInterface *interface, uint32_t maxCoun
         tailPkt = newPkt = replaceOrCopyPacket(&bufPkt, pktSize, &replaced);
         
         if (!newPkt) {
-            /* Allocation of a new packet failed so that we must leave the original packet in place. */
+            /*
+             * Allocation of a new packet failed. Try to get
+             * a replacement from the list of spare packets.
+             */
+            if (spareNum > 1) {
+                DebugLog("Use spare packet to replace buffer (%d available).\n", spareNum);
+                OSDecrementAtomic(&spareNum);
+
+                newPkt = bufPkt;
+                replaced = true;
+
+                bufPkt = sparePktHead;
+                sparePktHead = mbuf_next(sparePktHead);
+                mbuf_setnext(bufPkt, NULL);
+                goto handle_pkt;
+            }
+            /*
+             * No spare packets available so that we must leave
+             * the original packet in place as a last resort.
+             */
             DebugLog("replaceOrCopyPacket() failed.\n");
             etherStats->dot3RxExtraEntry.resourceErrors++;
             goto nextDesc;
         }
+handle_pkt:
         /* If the packet was replaced we have to update the free descriptor's buffer address. */
         if (replaced) {
             n = rxMbufCursor->getPhysicalSegments(bufPkt, &rxSegment, 1);
@@ -1224,6 +1250,9 @@ void AtherosE2200::interruptOccurred(OSObject *client, IOInterruptEventSource *s
             
             if (packets)
                 netif->flushInputQueue();
+            
+            if (spareNum < kRxNumSpareMbufs)
+                refillSpareBuffers();
         }
     }
 	if (status & ALX_ISR_PHY)

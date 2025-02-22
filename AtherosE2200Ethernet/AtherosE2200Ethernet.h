@@ -306,7 +306,10 @@ private:
 
     bool setupRxResources();
     bool setupTxResources();
-    bool setupStatResources();
+    void refillSpareBuffers();
+    
+    static IOReturn refillAction(OSObject *owner, void *arg1, void *arg2, void *arg3, void *arg4);
+    
     void freeRxResources();
     void freeTxResources();
     void clearDescriptors();
@@ -379,8 +382,11 @@ private:
     QCARxRetDesc *rxRetDescArray;
     QCARxFreeDesc *rxFreeDescArray;
 	IOMbufNaturalMemoryCursor *rxMbufCursor;
+    mbuf_t sparePktHead;
+    mbuf_t sparePktTail;
     mbuf_t *rxMbufArray;
     void *rxBufArrayMem;
+    SInt32 spareNum;
     UInt32 multicastFilter[2];
     UInt16 rxNextDescIndex;
     

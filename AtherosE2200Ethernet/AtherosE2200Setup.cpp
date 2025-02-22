@@ -180,7 +180,6 @@ bool AtherosE2200::setupRxResources()
     IOPhysicalSegment rxSegment;
     IODMACommand::Segment64 seg;
     QCARxDescArray *descArray;
-    mbuf_t spareMbuf[kRxNumSpareMbufs];
     mbuf_t m;
     UInt64 offset = 0;
     UInt32 numSegs = 1;
@@ -270,15 +269,26 @@ bool AtherosE2200::setupRxResources()
         rxFreeDescArray[i].addr = OSSwapHostToLittleInt64(rxSegment.location);
     }
 
-    /* Allocate some spare mbufs and free them in order to increase the buffer pool.
-     * This seems to avoid the replaceOrCopyPacket() errors under heavy load.
+    /*
+     * Allocate some spare mbufs and keep them in a buffer pool, to
+     * have them at hand in case replaceOrCopyPacket() fails
+     * under heavy load.
      */
-    for (i = 0; i < kRxNumSpareMbufs; i++)
-        spareMbuf[i] = allocatePacket(kRxBufferPktSize);
+    sparePktHead = sparePktTail = NULL;
 
     for (i = 0; i < kRxNumSpareMbufs; i++) {
-        if (spareMbuf[i])
-            freePacket(spareMbuf[i]);
+        m = allocatePacket(kRxBufferPktSize);
+        
+        if (m) {
+            if (sparePktHead) {
+                mbuf_setnext(sparePktTail, m);
+                sparePktTail = m;
+                spareNum++;
+            } else {
+                sparePktHead = sparePktTail = m;
+                spareNum = 1;
+            }
+        }
     }
     result = true;
     
@@ -432,6 +442,11 @@ void AtherosE2200::freeRxResources()
         rxBufArrayMem = NULL;
         rxMbufArray = NULL;
     }
+    if (sparePktHead) {
+        mbuf_freem(sparePktHead);
+        sparePktHead = sparePktTail = NULL;
+        spareNum = 0;
+    }
 }
 
 void AtherosE2200::freeTxResources()
@@ -455,6 +470,32 @@ void AtherosE2200::freeTxResources()
         txBufArrayMem = NULL;
         txMbufArray = NULL;
     }
+}
+
+void AtherosE2200::refillSpareBuffers()
+{
+    mbuf_t m;
+
+    while (spareNum < kRxNumSpareMbufs) {
+        m = allocatePacket(kRxBufferPktSize);
+
+        if (!m)
+            break;
+        
+        mbuf_setnext(sparePktTail, m);
+        sparePktTail = m;
+        OSIncrementAtomic(&spareNum);
+    }
+}
+
+IOReturn AtherosE2200::refillAction(OSObject *owner, void *arg1, void *arg2, void *arg3, void *arg4)
+{
+    AtherosE2200 *ethCtlr = OSDynamicCast(AtherosE2200, owner);
+    
+    if (ethCtlr) {
+        ethCtlr->refillSpareBuffers();
+    }
+    return kIOReturnSuccess;
 }
 
 void AtherosE2200::clearDescriptors()

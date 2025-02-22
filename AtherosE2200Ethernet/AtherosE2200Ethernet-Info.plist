@@ -44,10 +44,10 @@
 			<true/>
 			<key>enableTSO6</key>
 			<true/>
-			<key>rxPolling</key>
-			<true/>
 			<key>maxIntrRate</key>
 			<integer>7000</integer>
+			<key>rxPolling</key>
+			<true/>
 		</dict>
 	</dict>
 	<key>NSHumanReadableCopyright</key>
