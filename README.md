@@ -21,15 +21,23 @@ Qualcomm Atheros Killer E2200 driver for macOS
 ### Could you add support for AR813x and AR815x?
 Sorry, no, because I used a different linux driver as the code base than Shailua which doesn't support these chips so that it would be too much work to add support for them.
 
+## A word on AppleVTD
+
+Although AtherosE2200 supports AppleVTD, there is no guarantee that your mainboard also does. In case you are unsure if you need AppleVTD, leave it disabled and you'll be on the safe side. When you enable AppleVTD and experience one of the following issues, it's most likely that your board doesn't support AppleVTD:
+- Kernel Panics.
+- The machine suddenly reboots, freezes and/or the fans speed up.
+- No network connection at all.
+- The link status keeps going up and down.
+- Very low connection throughput.
+
+## What can you do to resolve the issue?
+
+Check your board's DMAR table and see if there are any reserved memory regions in it.
+If there are reserved memory regions, you might want to patch your DMAR removing these regions. If it resolves the issue, congratulations! Be careful, because the board's manufacturer did add these regions with intention. Removing them may produce unexpected results too, like the problems described above.
+Otherwise you have to keep AppleVTD disabled, because it is incompatible with your board and there is no way to make it compatible.
+
 ## Installation
-  1. Goto /S/L/E and delete ALXEthernet.kext.
-  2. Recreate the kernel cache.
-  3. Open System Preferences and delete the corresponding network interface, e. g. en0.
-  4. Reboot.
-  5. Install the new driver and recreate the kernel cache.
-  6. Reboot
-  7. Open System Preferences again, select Network and check if the new network interface has been created automatically or create it manually now.
-  8.Configure the interface.
+Use OpenCore or Clover to inject the kext.
 
 ## Troubleshooting
   - Disabling Energy Efficient Ethernet (EEE) may be required to avoid situations in which the link gets lost randomly.
@@ -44,6 +52,9 @@ Sorry, no, because I used a different linux driver as the code base than Shailua
   - Keep in mind that there are many manufacturers of network equipment. Although Ethernet is an IEEE standard, different implementations may show different behavior causing incompatibilities. In case you are having trouble try a different switch or a different cable.
 
 ## Changelog
+ - Version 2.4.0 (2025-02-22)
+   - Support for AppleVTD added.
+   - Keep some spare network buffers to better handle situations in which the network stack is unable to provide buffer memory according to the driver's demands (mostly MSI boards are affected).  
  - Version 2.3.2 (2020-06-07)
    - Fixed VLAN support.
    - Fixed build issue with Xcode 11.5.
