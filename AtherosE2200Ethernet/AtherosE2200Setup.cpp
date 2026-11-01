@@ -54,7 +54,64 @@ static UInt32 mediumSpeedArray[MEDIUM_INDEX_COUNT] = {
     1000 * MBit
 };
 
+
 #pragma mark --- data structure initialization methods ---
+
+void AtherosE2200::getParams(UInt32 *intrLimit)
+{
+    OSDictionary *params;
+    OSIterator *iterator;
+    OSNumber *intrRate;
+    OSBoolean *tso4;
+    OSBoolean *tso6;
+    OSBoolean *csoV6;
+    OSString *versionString;
+
+    if (version_major >= Tahoe) {
+        params = serviceMatching("AppleVTD");
+        
+        if (params) {
+            iterator = IOService::getMatchingServices(params);
+            
+            if (iterator) {
+                IOMapper *mp = OSDynamicCast(IOMapper, iterator->getNextObject());
+                
+                if (mp) {
+                    IOLog("AppleVTD is enabled.");
+                    useAppleVTD = true;
+                }
+                iterator->release();
+            }
+            params->release();
+        }
+    }
+    versionString = OSDynamicCast(OSString, getProperty(kDriverVersionName));
+
+    params = OSDynamicCast(OSDictionary, getProperty(kParamName));
+    
+    if (params) {
+        tso4 = OSDynamicCast(OSBoolean, params->getObject(kEnableTSO4Name));
+        enableTSO4 = (tso4 != NULL) ? tso4->getValue() : false;
+        
+        IOLog("TCP/IPv4 segmentation offload %s.\n", enableTSO4 ? onName : offName);
+        
+        tso6 = OSDynamicCast(OSBoolean, params->getObject(kEnableTSO6Name));
+        enableTSO6 = (tso6 != NULL) ? tso6->getValue() : false;
+        
+        IOLog("TCP/IPv6 segmentation offload %s.\n", enableTSO6 ? onName : offName);
+        
+        csoV6 = OSDynamicCast(OSBoolean, params->getObject(kEnableCSO6Name));
+        enableCSO6 = (csoV6 != NULL) ? csoV6->getValue() : false;
+        
+        IOLog("TCP/IPv6 checksum offload %s.\n", enableCSO6 ? onName : offName);
+        
+        intrRate = OSDynamicCast(OSNumber, params->getObject(kIntrRateName));
+        *intrLimit = 5000;
+        
+        if (intrRate)
+            *intrLimit = intrRate->unsigned32BitValue();
+    }
+}
 
 bool AtherosE2200::setupMediumDict()
 {
@@ -125,31 +182,20 @@ bool AtherosE2200::initEventSources(IOService *provider)
     if (msiIndex != -1) {
         DebugLog("MSI interrupt index: %d\n", msiIndex);
         
-        interruptSource = IOInterruptEventSource::interruptEventSource(this, OSMemberFunctionCast(IOInterruptEventSource::Action, this, &AtherosE2200::interruptOccurred), provider, msiIndex);
+        if (useAppleVTD) {
+            interruptSource = IOInterruptEventSource::interruptEventSource(this, OSMemberFunctionCast(IOInterruptEventSource::Action, this, &AtherosE2200::interruptOccurredVTD), provider, msiIndex);
+        } else {
+            interruptSource = IOInterruptEventSource::interruptEventSource(this, OSMemberFunctionCast(IOInterruptEventSource::Action, this, &AtherosE2200::interruptOccurred), provider, msiIndex);
+        }
     }
     if (!interruptSource) {
-        DebugLog("Warning: MSI index was not found or MSI interrupt could not be enabled.\n");
-        
-        interruptSource = IOInterruptEventSource::interruptEventSource(this, OSMemberFunctionCast(IOInterruptEventSource::Action, this, &AtherosE2200::interruptOccurred), provider);
-        
-        useMSI = false;
-    } else {
-        useMSI = true;
-    }
-    if (!interruptSource)
+        IOLog("MSI interrupt could not be enabled.\n");
+
         goto error1;
-    
+    }
     workLoop->addEventSource(interruptSource);
     
-    /*
-     * This is important. If the interrupt line is shared with other devices,
-     * then the interrupt vector will be enabled only if all corresponding
-     * interrupt event sources are enabled. To avoid masking interrupts for
-     * other devices that are sharing the interrupt line, the event source
-     * is enabled immediately.
-     */
-    if (!useMSI)
-        interruptSource->enable();
+    interruptSource->enable();
     
     timerSource = IOTimerEventSource::timerEventSource(this, OSMemberFunctionCast(IOTimerEventSource::Action, this, &AtherosE2200::timerAction));
     
@@ -177,8 +223,8 @@ error1:
 
 bool AtherosE2200::setupRxResources()
 {
-    IOPhysicalSegment rxSegment;
     IODMACommand::Segment64 seg;
+    IOPhysicalAddress64 pa = 0;
     QCARxDescArray *descArray;
     mbuf_t m;
     UInt64 offset = 0;
@@ -193,7 +239,7 @@ bool AtherosE2200::setupRxResources()
         IOLog("Couldn't alloc receive buffer array.\n");
         goto done;
     }
-    rxMbufArray = (mbuf_t *)rxBufArrayMem;
+    rxBufArray = (athRxBufferInfo *)rxBufArrayMem;
 
     /* Create receiver descriptor array. */
     rxBufDesc = IOBufferMemoryDescriptor::inTaskWithPhysicalMask(kernel_task, (kIODirectionInOut | kIOMemoryPhysicallyContiguous | kIOMemoryHostPhysicallyContiguous | kIOMapInhibitCache), kRxDescArraySize, 0xFFFFFFFFFFFFF000ULL);
@@ -241,69 +287,69 @@ bool AtherosE2200::setupRxResources()
     bzero(rxFreeDescArray, kRxFreeDescArraySize);
 
     for (i = 0; i < kNumRxDesc; i++) {
-        rxMbufArray[i] = NULL;
+        rxBufArray[i].mbuf = NULL;
+        rxBufArray[i].phyAddr = 0;
     }
     rxNextDescIndex = 0;
-    
-    rxMbufCursor = IOMbufNaturalMemoryCursor::withSpecification(PAGE_SIZE, 1);
-    
-    if (!rxMbufCursor) {
-        IOLog("Couldn't create rxMbufCursor.\n");
-        goto error_segm;
+    rxCleanedCount = rxMapNextIndex = 0;
+
+    rxPool = AtherosE2200RxPool::withCapacity(kRxPoolMbufCap, kRxPoolClstCap);
+
+    if (!rxPool) {
+        IOLog("Couldn't alloc receive buffer pool.\n");
+        goto error_rx_pool;
     }
 
     /* Alloc receive buffers. */
     for (i = 0; i < kNumRxDesc; i++) {
-        m = allocatePacket(kRxBufferPktSize);
+        m = rxPool->getPacket(kRxBufferSize, MBUF_WAITOK);
         
         if (!m) {
             IOLog("Couldn't alloc receive buffer.\n");
-            goto error_buf;
+            goto error_rx_buf;
         }
-        rxMbufArray[i] = m;
-        
-        if (rxMbufCursor->getPhysicalSegments(m, &rxSegment, 1) != 1) {
-            IOLog("getPhysicalSegments() for receive buffer failed.\n");
-            goto error_buf;
-        }
-        rxFreeDescArray[i].addr = OSSwapHostToLittleInt64(rxSegment.location);
-    }
+        rxBufArray[i].mbuf = m;
 
-    /*
-     * Allocate some spare mbufs and keep them in a buffer pool, to
-     * have them at hand in case replaceOrCopyPacket() fails
-     * under heavy load.
-     */
-    sparePktHead = sparePktTail = NULL;
+        if (!useAppleVTD) {
+            pa = mbuf_data_to_physical(mbuf_data(m));
+            
+            /* We have to keep the physical address of the buffer too
+             * as descriptor write back overwrites it in the descriptor
+             * so that it must be refreshed when the descriptor is
+             * prepared for reuse.
+             */
+            rxBufArray[i].phyAddr = pa;
 
-    for (i = 0; i < kRxNumSpareMbufs; i++) {
-        m = allocatePacket(kRxBufferPktSize);
-        
-        if (m) {
-            if (sparePktHead) {
-                mbuf_setnext(sparePktTail, m);
-                sparePktTail = m;
-                spareNum++;
-            } else {
-                sparePktHead = sparePktTail = m;
-                spareNum = 1;
-            }
+            rxFreeDescArray[i].addr = OSSwapHostToLittleInt64(pa);
         }
     }
-    result = true;
-    
+    if (useAppleVTD) {
+        result = setupRxMap();
+        
+        if (!result)
+            goto error_rx_buf;
+
+    } else {
+        result = true;
+    }
+
 done:
     return result;
     
-error_buf:
+error_rx_buf:
     for (i = 0; i < kNumRxDesc; i++) {
-        if (rxMbufArray[i]) {
-            freePacket(rxMbufArray[i]);
-            rxMbufArray[i] = NULL;
+        if (rxBufArray[i].mbuf) {
+            mbuf_freem_list(rxBufArray[i].mbuf);
+            rxBufArray[i].mbuf = NULL;
+            rxBufArray[i].phyAddr = 0;
         }
     }
-    RELEASE(rxMbufCursor);
+    RELEASE(rxPool);
 
+error_rx_pool:
+    rxRetPhyAddr = NULL;
+    rxFreePhyAddr = NULL;
+    
 error_segm:
     rxDescDmaCmd->clearMemoryDescriptor();
 
@@ -319,7 +365,7 @@ error_prep:
 error_buff:
     IOFree(rxBufArrayMem, kRxBufArraySize);
     rxBufArrayMem = NULL;
-    rxMbufArray = NULL;
+    rxBufArray = NULL;
 
     goto done;
 }
@@ -336,7 +382,7 @@ bool AtherosE2200::setupTxResources()
     txBufArrayMem = IOMallocZero(kTxBufArraySize);
     
     if (!txBufArrayMem) {
-        IOLog("Couldn't alloc transmit buffer array.\n");
+        IOLog("Couldn't alloc transmit mbuf array.\n");
         goto done;
     }
     txMbufArray = (mbuf_t *)txBufArrayMem;
@@ -381,17 +427,28 @@ bool AtherosE2200::setupTxResources()
     }
     txNextDescIndex = txDirtyDescIndex = 0;
     txNumFreeDesc = kNumTxDesc;
-    txMbufCursor = IOMbufNaturalMemoryCursor::withSpecification(0x1000, kMaxSegs);
-
-    if (!txMbufCursor) {
-        IOLog("Couldn't create txMbufCursor.\n");
-        goto error_segm;
+    
+    if (useAppleVTD) {
+        result = setupTxMap();
+        
+        if (!result)
+            goto error_tx_cursor;
+    } else {
+        txMbufCursor = IOMbufNaturalMemoryCursor::withSpecification(PAGE_SIZE, kMaxSegs);
+        
+        if (!txMbufCursor) {
+            IOLog("Couldn't create txMbufCursor.\n");
+            goto error_tx_cursor;
+        }
     }
     result = true;
     
 done:
     return result;
     
+error_tx_cursor:
+    txPhyAddr = 0;
+
 error_segm:
     txDescDmaCmd->clearMemoryDescriptor();
 
@@ -416,6 +473,9 @@ void AtherosE2200::freeRxResources()
 {
     UInt32 i;
     
+    if (useAppleVTD)
+        freeRxMap();
+
     if (rxDescDmaCmd) {
         rxDescDmaCmd->complete();
         rxDescDmaCmd->clearMemoryDescriptor();
@@ -429,28 +489,26 @@ void AtherosE2200::freeRxResources()
         rxRetPhyAddr = (IOPhysicalAddress64)NULL;
         rxFreePhyAddr = (IOPhysicalAddress64)NULL;
     }
-    RELEASE(rxMbufCursor);
     
     for (i = 0; i < kNumRxDesc; i++) {
-        if (rxMbufArray[i]) {
-            freePacket(rxMbufArray[i]);
-            rxMbufArray[i] = NULL;
+        if (rxBufArray[i].mbuf) {
+            freePacket(rxBufArray[i].mbuf);
+            rxBufArray[i].mbuf = NULL;
+            rxBufArray[i].phyAddr = 0;
         }
     }
     if (rxBufArrayMem) {
         IOFree(rxBufArrayMem, kRxBufArraySize);
         rxBufArrayMem = NULL;
-        rxMbufArray = NULL;
-    }
-    if (sparePktHead) {
-        mbuf_freem(sparePktHead);
-        sparePktHead = sparePktTail = NULL;
-        spareNum = 0;
+        rxBufArray = NULL;
     }
 }
 
 void AtherosE2200::freeTxResources()
 {
+    if (useAppleVTD)
+        freeTxMap();
+
     if (txDescDmaCmd) {
         txDescDmaCmd->complete();
         txDescDmaCmd->clearMemoryDescriptor();
@@ -463,43 +521,17 @@ void AtherosE2200::freeTxResources()
         txBufDesc = NULL;
         txPhyAddr = (IOPhysicalAddress64)NULL;
     }
-    RELEASE(txMbufCursor);
-
     if (txBufArrayMem) {
         IOFree(txBufArrayMem, kTxBufArraySize);
         txBufArrayMem = NULL;
         txMbufArray = NULL;
     }
-}
-
-void AtherosE2200::refillSpareBuffers()
-{
-    mbuf_t m;
-
-    while (spareNum < kRxNumSpareMbufs) {
-        m = allocatePacket(kRxBufferPktSize);
-
-        if (!m)
-            break;
-        
-        mbuf_setnext(sparePktTail, m);
-        sparePktTail = m;
-        OSIncrementAtomic(&spareNum);
-    }
-}
-
-IOReturn AtherosE2200::refillAction(OSObject *owner, void *arg1, void *arg2, void *arg3, void *arg4)
-{
-    AtherosE2200 *ethCtlr = OSDynamicCast(AtherosE2200, owner);
-    
-    if (ethCtlr) {
-        ethCtlr->refillSpareBuffers();
-    }
-    return kIOReturnSuccess;
+    RELEASE(txMbufCursor);
 }
 
 void AtherosE2200::clearDescriptors()
 {
+    IOMemoryDescriptor *md;
     mbuf_t m;
     UInt32 i;
     
@@ -514,47 +546,31 @@ void AtherosE2200::clearDescriptors()
             txMbufArray[i] = NULL;
         }
     }
+    if (useAppleVTD) {
+        for (i = 0; i < kNumTxMemDesc; i++) {
+            md = txMapInfo->txMemIO[i];
+            
+            if (md && (md->getTag() == kIOMemoryActive)) {
+                md->complete();
+                md->setTag(kIOMemoryInactive);
+            }
+        }
+        txMapInfo->txNextMem2Use = txMapInfo->txNextMem2Free = 0;
+        txMapInfo->txNumFreeMem = kNumTxMemDesc;
+    }
     txDirtyDescIndex = txNextDescIndex = 0;
     txNumFreeDesc = kNumTxDesc;
     
+    if (useAppleVTD) {
+        rxMapNextIndex = 0;
+        rxMapBuffers(0, kNumRxMemDesc, false);
+    }
+
     /* Cleanup rxRetDescArray. */
     bzero(rxRetDescArray, kRxRetDescArraySize);
+    
     rxNextDescIndex = 0;
+    rxCleanedCount = rxMapNextIndex = 0;
 
     DebugLog("clearDescriptors() <===\n");
-}
-
-void AtherosE2200::getParams(UInt32 *intrLimit)
-{
-    OSNumber *intrRate;
-    OSBoolean *tso4;
-    OSBoolean *tso6;
-    OSBoolean *csoV6;
-    OSBoolean *poll;
-
-    poll = OSDynamicCast(OSBoolean, getProperty(kEnableRxPollName));
-    rxPoll = (poll) ? poll->getValue() : false;
-    
-    IOLog("RxPoll support %s.\n", rxPoll ? onName : offName);
-
-    tso4 = OSDynamicCast(OSBoolean, getProperty(kEnableTSO4Name));
-    enableTSO4 = (tso4) ? tso4->getValue() : false;
-    
-    IOLog("TCP/IPv4 segmentation offload %s.\n", enableTSO4 ? onName : offName);
-    
-    tso6 = OSDynamicCast(OSBoolean, getProperty(kEnableTSO6Name));
-    enableTSO6 = (tso6) ? tso6->getValue() : false;
-    
-    IOLog("TCP/IPv6 segmentation offload %s.\n", enableTSO6 ? onName : offName);
-    
-    csoV6 = OSDynamicCast(OSBoolean, getProperty(kEnableCSO6Name));
-    enableCSO6 = (csoV6) ? csoV6->getValue() : false;
-    
-    IOLog("TCP/IPv6 checksum offload %s.\n", enableCSO6 ? onName : offName);
-    
-    intrRate = OSDynamicCast(OSNumber, getProperty(kIntrRateName));
-    *intrLimit = 5000;
-    
-    if (intrRate)
-        *intrLimit = intrRate->unsigned32BitValue();
 }

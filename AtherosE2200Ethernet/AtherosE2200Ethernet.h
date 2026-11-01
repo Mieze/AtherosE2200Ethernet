@@ -18,6 +18,7 @@
  * This driver is based on Johannes Berg's alx driver for Linux.
  */
 
+#include "AtherosE2200RxPool.hpp"
 #include "reg.h"
 #include "hw.h"
 
@@ -141,10 +142,10 @@ typedef struct QCARxFreeDesc {
 #define kTransmitQueueCapacity  1024
 
 /* With up to 40 segments we should be on the save side. */
-#define kMaxSegs 40
+#define kMaxSegs 32
 
 /* The number of descriptors must be a power of 2. */
-#define kNumTxDesc      1024    /* Number of Tx descriptors */
+#define kNumTxDesc      512    /* Number of Tx descriptors */
 #define kNumRxDesc      512     /* Number of Rx descriptors */
 #define kTxLastDesc    (kNumTxDesc - 1)
 #define kRxLastDesc    (kNumRxDesc - 1)
@@ -154,8 +155,23 @@ typedef struct QCARxFreeDesc {
 #define kRxRetDescArraySize    (kNumRxDesc*sizeof(QCARxRetDesc))
 #define kRxFreeDescArraySize    (kNumRxDesc*sizeof(QCARxFreeDesc))
 #define kRxDescArraySize         (kRxRetDescArraySize + kRxFreeDescArraySize)
-#define kRxBufArraySize (kNumRxDesc * sizeof(mbuf_t))
+#define kRxBufArraySize (kNumRxDesc * sizeof(athRxBufferInfo))
 #define kTxBufArraySize (kNumTxDesc * sizeof(mbuf_t))
+
+/* Numbers of IOMemoryDescriptors and IORanges for tx */
+#define kNumTxMemDesc       (kNumTxDesc / 2)
+#define kTxMemDescMask      (kNumTxMemDesc - 1)
+#define kNumTxRanges        (kNumTxDesc + kMaxSegs)
+#define kTxRangeMask        kTxDescMask
+#define kTxMapMemSize       sizeof(struct athTxMapInfo)
+
+/* Numbers of IOMemoryDescriptors and batch size for rx */
+#define kRxMemBaseShift 4
+#define kNumRxMemDesc   (kNumRxDesc >> kRxMemBaseShift)
+#define kRxMapMemSize   (sizeof(struct athRxMapInfo))
+#define kRxMemBatchSize (kNumRxDesc / kNumRxMemDesc)
+#define kRxMemDescMask  (kRxMemBatchSize - 1)
+#define kRxMemBaseMask  ~kRxMemDescMask
 
 /* Tx descriptor array */
 typedef struct QCATxDescArray {
@@ -168,14 +184,17 @@ typedef struct QCARxDescArray {
     QCARxFreeDesc rxFreeDesc[kNumRxDesc];
 } QCARxDescArray;
 
-/* This is the receive buffer size (must be exactly 2048 bytes to match a cluster). */
-#define kRxBufferPktSize 2048
-#define kRxNumSpareMbufs 100
+/* This is the receive buffer size (must be exactly a page size). */
+#define kRxBufferSize   PAGE_SIZE
 #define kMCFilterLimit 32
 #define kMaxRxQueques 1
 #define kMaxMtu 9000
 #define kMaxPacketSize (kMaxMtu + ETH_HLEN + ETH_FCS_LEN)
 #define kMaxTsoMtu 7000
+
+/* AtherosE2200RxPool capacities */
+#define kRxPoolClstCap   100    /* mbufs with 4k cluster*/
+#define kRxPoolMbufCap   50     /* mbufs without clusters */
 
 /* statitics timer period in ms. */
 #define kTimeoutMS 1000
@@ -230,14 +249,71 @@ enum
     kPowerStateCount
 };
 
+#define kParamName "Driver Parameters"
 #define kEnableCSO6Name "enableCSO6"
 #define kEnableTSO4Name "enableTSO4"
 #define kEnableTSO6Name "enableTSO6"
 #define kIntrRateName "maxIntrRate"
-#define kDriverVersionName "Driver_Version"
+#define kDriverVersionName "DriverVersion"
 #define kNameLenght 64
 
-#define kEnableRxPollName "rxPolling"
+/*
+ * Indicates if a tx IOMemoryDescriptor is in the prepared
+ * (active) or completed state (inactive).
+ */
+enum
+{
+    kIOMemoryInactive = 0,
+    kIOMemoryActive = 1
+};
+
+typedef struct athTxMapInfo {
+    UInt16 txNextMem2Use;
+    UInt16 txNextMem2Free;
+    SInt16 txNumFreeMem;
+    IOMemoryDescriptor *txMemIO[kNumTxMemDesc];
+    IOAddressRange txMemRange[kNumTxRanges];
+    IOAddressRange txSCRange[kMaxSegs];
+} athTxMapInfo;
+
+typedef struct athRxMapInfo {
+    IOMemoryDescriptor *rxMemIO[kNumRxMemDesc];
+    IOAddressRange rxMemRange[kNumRxDesc];
+} athRxMapInfo;
+
+typedef struct athRxBufferInfo {
+    mbuf_t mbuf;
+    IOPhysicalAddress64 phyAddr;
+} athRxBufferInfo;
+
+/**
+ *  Known kernel versions
+ */
+enum KernelVersion {
+    Tiger         = 8,
+    Leopard       = 9,
+    SnowLeopard   = 10,
+    Lion          = 11,
+    MountainLion  = 12,
+    Mavericks     = 13,
+    Yosemite      = 14,
+    ElCapitan     = 15,
+    Sierra        = 16,
+    HighSierra    = 17,
+    Mojave        = 18,
+    Catalina      = 19,
+    BigSur        = 20,
+    Monterey      = 21,
+    Ventura       = 22,
+    Sonoma        = 23,
+    Sequoia       = 24,
+    Tahoe         = 25,
+};
+
+/**
+ *  Kernel version major
+ */
+extern const int version_major;
 
 class AtherosE2200 : public super
 {
@@ -300,16 +376,24 @@ private:
     bool setupMediumDict();
     bool initEventSources(IOService *provider);
     void interruptOccurred(OSObject *client, IOInterruptEventSource *src, int count);
+    void interruptOccurredVTD(OSObject *client, IOInterruptEventSource *src, int count);
     void txInterrupt();
     
     UInt32 rxInterrupt(IONetworkInterface *interface, uint32_t maxCount, IOMbufQueue *pollQueue, void *context);
+    UInt32 rxInterruptVTD(IONetworkInterface *interface, uint32_t maxCount, IOMbufQueue *pollQueue, void *context);
+
+    UInt32 txMapPacket(mbuf_t packet, IOPhysicalSegment *vector, UInt32 maxSegs);
+    void txUnmapPacket();
+    UInt16 rxMapBuffers(UInt16 index, UInt16 count, bool update);
 
     bool setupRxResources();
     bool setupTxResources();
-    void refillSpareBuffers();
     
-    static IOReturn refillAction(OSObject *owner, void *arg1, void *arg2, void *arg3, void *arg4);
-    
+    bool setupRxMap();
+    void freeRxMap();
+    bool setupTxMap();
+    void freeTxMap();
+
     void freeRxResources();
     void freeTxResources();
     void clearDescriptors();
@@ -333,7 +417,7 @@ private:
     void alxConfigureRSS(bool enable);
     inline void alxEnableIRQ();
     inline void alxDisableIRQ();
-    inline void alxGetChkSumCommand(UInt32 *cmd, mbuf_csum_request_flags_t checksums);
+    void alxGetChkSumCommand(UInt32 *cmd, mbuf_csum_request_flags_t checksums);
     int alxReadPhyLink();
     void alxResetPhy();
     void alxPostPhyLink();
@@ -368,6 +452,8 @@ private:
     IOMbufNaturalMemoryCursor *txMbufCursor;
     mbuf_t *txMbufArray;
     void *txBufArrayMem;
+    athTxMapInfo *txMapInfo;
+    void *txMapMem;
     UInt64 txDescDoneCount;
     UInt64 txDescDoneLast;
     SInt32 txNumFreeDesc;
@@ -381,15 +467,16 @@ private:
     IODMACommand *rxDescDmaCmd;
     QCARxRetDesc *rxRetDescArray;
     QCARxFreeDesc *rxFreeDescArray;
-	IOMbufNaturalMemoryCursor *rxMbufCursor;
-    mbuf_t sparePktHead;
-    mbuf_t sparePktTail;
-    mbuf_t *rxMbufArray;
+    AtherosE2200RxPool *rxPool;
+    athRxBufferInfo *rxBufArray;
     void *rxBufArrayMem;
-    SInt32 spareNum;
+    void *rxMapMem;
+    athRxMapInfo *rxMapInfo;
     UInt32 multicastFilter[2];
     UInt16 rxNextDescIndex;
-    
+    UInt16 rxMapNextIndex;
+    UInt16 rxCleanedCount;
+
     /* EEE support */
     UInt16 eeeCap;
     UInt16 eeeAdv;
@@ -423,16 +510,15 @@ private:
 	bool multicastMode;
     bool linkUp;
     
-    bool rxPoll;
     bool polling;
     
-    bool useMSI;
     bool gbCapable;;
     bool wolCapable;
     bool enableTSO4;
     bool enableTSO6;
     bool enableCSO6;
-        
+    bool useAppleVTD;
+
 #ifdef CONFIG_RSS
     
     /* RSS parameter */

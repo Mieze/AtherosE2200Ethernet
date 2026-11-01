@@ -38,16 +38,17 @@
 			<integer>1000</integer>
 			<key>IOProviderClass</key>
 			<string>IOPCIDevice</string>
-			<key>enableCSO6</key>
-			<true/>
-			<key>enableTSO4</key>
-			<true/>
-			<key>enableTSO6</key>
-			<true/>
-			<key>maxIntrRate</key>
-			<integer>7000</integer>
-			<key>rxPolling</key>
-			<true/>
+			<key>Driver Parameters</key>
+			<dict>
+				<key>enableCSO6</key>
+				<true/>
+				<key>enableTSO4</key>
+				<true/>
+				<key>enableTSO6</key>
+				<true/>
+				<key>maxIntrRate</key>
+				<integer>7000</integer>
+			</dict>
 		</dict>
 	</dict>
 	<key>NSHumanReadableCopyright</key>
